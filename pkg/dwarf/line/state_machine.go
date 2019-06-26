@@ -109,8 +109,8 @@ func newStateMachine(dbl *DebugLineInfo, instructions []byte) *StateMachine {
 	return sm
 }
 
-// Returns all PCs for a given file/line. Useful for loops where the 'for' line
-// could be split amongst 2 PCs.
+// AllPCsForFileLine returns all PCs for a given file/line.
+// Useful for loops where the 'for' line could be split amongst 2 PCs.
 func (lineInfo *DebugLineInfo) AllPCsForFileLine(f string, l int) (pcs []uint64) {
 	if lineInfo == nil {
 		return nil
@@ -131,6 +131,36 @@ func (lineInfo *DebugLineInfo) AllPCsForFileLine(f string, l int) (pcs []uint64)
 		if sm.line == l && sm.file == f && sm.address != lastAddr && sm.isStmt && sm.valid {
 			pcs = append(pcs, sm.address)
 			lastAddr = sm.address
+		}
+	}
+	return
+}
+
+// AllPCsForFileLines Adds all PCs for a given file and set (domain of map) of lines
+// to the map value corresponding to each line.
+func (lineInfo *DebugLineInfo) AllPCsForFileLines(f string, m map[int][]uint64)  {
+	if lineInfo == nil {
+		return
+	}
+
+	var (
+		lastAddr uint64
+		sm       = newStateMachine(lineInfo, lineInfo.Instructions)
+	)
+
+	for {
+		if err := sm.next(); err != nil {
+			if lineInfo.Logf != nil {
+				lineInfo.Logf("AllPCsForFileLine error: %v", err)
+			}
+			break
+		}
+		if sm.address != lastAddr && sm.isStmt && sm.valid  && sm.file == f {
+			if pcs, ok := m[sm.line] ; ok {
+				pcs = append(pcs, sm.address)
+				m[sm.line] = pcs
+				lastAddr = sm.address
+			}
 		}
 	}
 	return
