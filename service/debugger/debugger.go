@@ -568,6 +568,7 @@ func (d *Debugger) state(retLoadCfg *proc.LoadConfig, withBreakpointInfo bool) (
 
 	state = &api.DebuggerState{
 		Pid:               tgt.Pid(),
+		TargetCommandLine: tgt.CmdLine,
 		SelectedGoroutine: goroutine,
 		Exited:            exited,
 	}

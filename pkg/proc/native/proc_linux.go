@@ -131,7 +131,7 @@ func Launch(cmd []string, wd string, flags proc.LaunchFlags, debugInfoDirs []str
 	if err != nil {
 		return nil, fmt.Errorf("waiting for target execve failed: %s", err)
 	}
-	tgt, err := dbp.initialize(cmd[0], debugInfoDirs)
+	tgt, err := dbp.initialize(cmd[0], getCmdLine(dbp.pid), debugInfoDirs)
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +154,7 @@ func Attach(pid int, debugInfoDirs []string) (*proc.TargetGroup, error) {
 		return nil, err
 	}
 
-	tgt, err := dbp.initialize(findExecutable("", dbp.pid), debugInfoDirs)
+	tgt, err := dbp.initialize(findExecutable("", dbp.pid), getCmdLine(dbp.pid), debugInfoDirs)
 	if err != nil {
 		_ = dbp.Detach(false)
 		return nil, err
@@ -461,7 +461,7 @@ func trapWaitInternal(procgrp *processGroup, pid int, options trapWaitOptions) (
 			dbp = newChildProcess(procgrp.procs[0], wpid)
 			dbp.followExec = true
 			dbp.initializeBasic()
-			_, err := procgrp.add(dbp, dbp.pid, dbp.memthread, findExecutable("", dbp.pid), proc.StopLaunched)
+			tgt, err := procgrp.add(dbp, dbp.pid, dbp.memthread, findExecutable("", dbp.pid), proc.StopLaunched, getCmdLine(dbp.pid))
 			if err != nil {
 				_ = dbp.Detach(false)
 				return nil, err
@@ -469,11 +469,15 @@ func trapWaitInternal(procgrp *processGroup, pid int, options trapWaitOptions) (
 			if halt {
 				return nil, nil
 			}
-			// TODO(aarzilli): if we want to give users the ability to stop the target
-			// group on exec here is where we should return
-			err = dbp.threads[dbp.pid].Continue()
-			if err != nil {
-				return nil, err
+			if tgt != nil {
+				// If tgt is nil we decided we are not interested in debugging this
+				// process, and we have already detached from it.
+				//TODO(aarzilli): if we want to give users the ability to stop the target
+				//group on exec here is where we should return
+				err = dbp.threads[dbp.pid].Continue()
+				if err != nil {
+					return nil, err
+				}
 			}
 			continue
 		}
@@ -916,4 +920,18 @@ func (dbp *nativeProcess) FollowExec(v bool) error {
 
 func killProcess(pid int) error {
 	return sys.Kill(pid, sys.SIGINT)
+}
+
+func getCmdLine(pid int) string {
+	buf, _ := ioutil.ReadFile(fmt.Sprintf("/proc/%d/cmdline", pid))
+	args := strings.SplitN(string(buf), "\x00", -1)
+	for i := range args {
+		if strings.Contains(args[i], " ") {
+			args[i] = strconv.Quote(args[i])
+		}
+	}
+	if len(args) > 0 && args[len(args)-1] == "" {
+		args = args[:len(args)-1]
+	}
+	return strings.Join(args, " ")
 }

@@ -730,7 +730,7 @@ func (p *gdbProcess) initialize(path string, debugInfoDirs []string, stopReason 
 		StopReason:          stopReason,
 		CanDump:             runtime.GOOS == "darwin",
 	})
-	_, err = addTarget(p, p.conn.pid, p.currentThread, path, stopReason)
+	_, err = addTarget(p, p.conn.pid, p.currentThread, path, stopReason, "")
 	if err != nil {
 		p.Detach(true)
 		return nil, err

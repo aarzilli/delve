@@ -41,7 +41,8 @@ type Target struct {
 	proc   ProcessInternal
 	recman RecordingManipulationInternal
 
-	pid int
+	pid     int
+	CmdLine string
 
 	// StopReason describes the reason why the target process is stopped.
 	// A process could be stopped for multiple simultaneous reasons, in which
