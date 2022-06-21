@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/go-delve/delve/pkg/config"
 	"github.com/go-delve/delve/pkg/gobuild"
@@ -424,6 +425,18 @@ Where source is one of 'stdin', 'stdout' or 'stderr' and destination is the path
 
 File redirects can also be changed using the 'restart' command.
 `,
+	})
+
+	rootCommand.AddCommand(&cobra.Command{
+		Use:    "terminal-helper",
+		Hidden: true,
+		Run: func(cmd *cobra.Command, args []string) {
+			pid := os.Getpid()
+			fmt.Printf("%d\n", pid)
+			for {
+				time.Sleep(100000 * time.Second)
+			}
+		},
 	})
 
 	rootCommand.DisableAutoGenTag = true

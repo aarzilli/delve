@@ -1,4 +1,4 @@
-//go:generate go run $GOROOT/src/syscall/mksyscall_windows.go -output zsyscall_windows.go syscall_windows.go
+//go:generate go run golang.org/x/sys/windows/mkwinsyscall -output zsyscall_windows.go syscall_windows.go
 
 package native
 
@@ -144,3 +144,5 @@ type _CONTEXT = winutil.CONTEXT
 //sys	_QueryFullProcessImageName(process syscall.Handle, flags uint32, exename *uint16, size *uint32) (err error) = kernel32.QueryFullProcessImageNameW
 //sys   _VirtualQueryEx(process syscall.Handle, addr uintptr, buffer *_MEMORY_BASIC_INFORMATION, length uintptr) (lengthOut uintptr) = kernel32.VirtualQueryEx
 //sys   _IsWow64Process(process syscall.Handle, wow64process *uint32) (ok uint32) = kernel32.IsWow64Process
+//sys   _AttachConsole(pid uint32) (err error) = kernel32.AttachConsole
+//sys   _FreeConsole() (err error) = kernel32.FreeConsole

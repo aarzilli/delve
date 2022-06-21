@@ -76,6 +76,7 @@ golang.org/x/sys/execabs
 golang.org/x/sys/internal/unsafeheader
 golang.org/x/sys/unix
 golang.org/x/sys/windows
+golang.org/x/sys/windows/mkwinsyscall
 # golang.org/x/tools v0.1.9
 ## explicit
 golang.org/x/tools/go/gcexportdata

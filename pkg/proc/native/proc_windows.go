@@ -3,7 +3,9 @@ package native
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"unsafe"
 
@@ -25,7 +27,7 @@ type osProcessDetails struct {
 func (os *osProcessDetails) Close() {}
 
 // Launch creates and begins debugging a new process.
-func Launch(cmd []string, wd string, flags proc.LaunchFlags, _ []string, _ string, redirects [3]string) (*proc.Target, error) {
+func Launch(cmd []string, wd string, flags proc.LaunchFlags, _ []string, tty string, redirects [3]string) (*proc.Target, error) {
 	argv0Go, err := filepath.Abs(cmd[0])
 	if err != nil {
 		return nil, err
@@ -43,6 +45,26 @@ func Launch(cmd []string, wd string, flags proc.LaunchFlags, _ []string, _ strin
 		creationFlags |= syscall.CREATE_NEW_PROCESS_GROUP
 	}
 
+	var occupyConsole *os.Process
+
+	if tty != "" {
+		newConsolePid, err := strconv.Atoi(tty)
+		if err != nil {
+			return nil, err
+		}
+		occupyConsole, err = occupyCurrentConsole()
+		if err != nil {
+			return nil, err
+		}
+		_FreeConsole()
+		err = _AttachConsole(uint32(newConsolePid))
+		if err != nil {
+			_AttachConsole(uint32(occupyConsole.Pid))
+			occupyConsole.Kill()
+			return nil, err
+		}
+	}
+
 	var p *os.Process
 	dbp := newProcess(0)
 	dbp.execPtraceFunc(func() {
@@ -57,6 +79,14 @@ func Launch(cmd []string, wd string, flags proc.LaunchFlags, _ []string, _ strin
 		p, err = os.StartProcess(argv0Go, cmd, attr)
 	})
 	closefn()
+	if tty != "" {
+		_FreeConsole()
+		err := _AttachConsole(uint32(occupyConsole.Pid))
+		if err != nil {
+			fmt.Printf("error reattacching to normal console: %v\n", err)
+		}
+		//occupyConsole.Kill()
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -249,6 +279,10 @@ const (
 )
 
 const _MS_VC_EXCEPTION = 0x406D1388 // part of VisualC protocol to set thread names
+
+var (
+	dbgUiRemoteBreakin = modntdll.NewProc("DbgUiRemoteBreakin")
+)
 
 func (dbp *nativeProcess) waitForDebugEvent(flags waitForDebugEventFlags) (threadID, exitCode int, err error) {
 	var debugEvent _DEBUG_EVENT
@@ -566,4 +600,24 @@ func killProcess(pid int) error {
 	defer p.Release()
 
 	return p.Kill()
+}
+
+func occupyCurrentConsole() (*os.Process, error) {
+	dlvexe, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+	cmd := exec.Command(dlvexe, "terminal-helper")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	err = cmd.Start()
+	if err != nil {
+		return nil, err
+	}
+	go cmd.Wait()
+	buf := make([]byte, 128)
+	stdout.Read(buf)
+	return cmd.Process, nil
 }
