@@ -86,6 +86,8 @@ const (
 	VariableCPtr
 	// VariableCPURegister means this variable is a CPU register.
 	VariableCPURegister
+
+	variableSaved
 )
 
 // Variable represents a variable. It contains the address, name,
@@ -1232,7 +1234,7 @@ func (v *Variable) maybeDereference() *Variable {
 
 	switch t := v.RealType.(type) {
 	case *godwarf.PtrType:
-		if v.Addr == 0 && len(v.Children) == 1 && v.loaded {
+		if (v.Addr == 0 || v.Flags&VariableFakeAddress != 0) && len(v.Children) == 1 && v.loaded {
 			// fake pointer variable constructed by casting an integer to a pointer type
 			return &v.Children[0]
 		}
@@ -1459,7 +1461,7 @@ func convertToEface(srcv, dstv *Variable) error {
 	}
 	typeAddr, typeKind, runtimeTypeFound, err := dwarfToRuntimeType(srcv.bi, srcv.mem, srcv.RealType)
 	if err != nil {
-		return err
+		return fmt.Errorf("can not convert value of type %s to %s: %v", srcv.DwarfType.String(), dstv.DwarfType.String(), err)
 	}
 	if !runtimeTypeFound || typeKind&kindDirectIface == 0 {
 		return &typeConvErr{srcv.DwarfType, dstv.RealType}
