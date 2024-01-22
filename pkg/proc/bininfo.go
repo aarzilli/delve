@@ -33,6 +33,7 @@ import (
 	"github.com/go-delve/delve/pkg/internal/gosym"
 	"github.com/go-delve/delve/pkg/logflags"
 	"github.com/go-delve/delve/pkg/proc/debuginfod"
+	"github.com/go-delve/delve/pkg/proc/evalop"
 	"github.com/go-delve/gore"
 	"github.com/hashicorp/golang-lru/simplelru"
 )
@@ -2127,10 +2128,10 @@ func (bi *BinaryInfo) findTypeExpr(expr ast.Expr) (godwarf.Type, error) {
 		alen, litlen := anode.Len.(*ast.BasicLit)
 		if litlen && alen.Kind == token.INT {
 			n, _ := strconv.Atoi(alen.Value)
-			return bi.findArrayType(n, exprToString(anode.Elt))
+			return bi.findArrayType(n, evalop.ExprToString(anode.Elt))
 		}
 	}
-	return bi.findType(exprToString(expr))
+	return bi.findType(evalop.ExprToString(expr))
 }
 
 func (bi *BinaryInfo) findArrayType(n int, etyp string) (godwarf.Type, error) {

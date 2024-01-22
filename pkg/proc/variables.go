@@ -21,6 +21,7 @@ import (
 	"github.com/go-delve/delve/pkg/dwarf/op"
 	"github.com/go-delve/delve/pkg/goversion"
 	"github.com/go-delve/delve/pkg/logflags"
+	"github.com/go-delve/delve/pkg/proc/evalop"
 )
 
 const (
@@ -643,7 +644,7 @@ func newVariable(name string, addr uint64, dwarfType godwarf.Type, bi *BinaryInf
 		bi:        bi,
 	}
 
-	v.RealType = resolveTypedef(v.DwarfType)
+	v.RealType = evalop.ResolveTypedef(v.DwarfType)
 
 	switch t := v.RealType.(type) {
 	case *godwarf.PtrType:
@@ -735,19 +736,6 @@ func newVariable(name string, addr uint64, dwarfType godwarf.Type, bi *BinaryInf
 	}
 
 	return v
-}
-
-func resolveTypedef(typ godwarf.Type) godwarf.Type {
-	for {
-		switch tt := typ.(type) {
-		case *godwarf.TypedefType:
-			typ = tt.Type
-		case *godwarf.QualType:
-			typ = tt.Type
-		default:
-			return typ
-		}
-	}
 }
 
 var constantMaxInt64 = constant.MakeInt64(1<<63 - 1)
@@ -1101,7 +1089,7 @@ func (v *Variable) structMember(memberName string) (*Variable, error) {
 	switch v.Kind {
 	case reflect.Chan:
 		v = v.clone()
-		v.RealType = resolveTypedef(&(v.RealType.(*godwarf.ChanType).TypedefType))
+		v.RealType = evalop.ResolveTypedef(&(v.RealType.(*godwarf.ChanType).TypedefType))
 	case reflect.Interface:
 		v.loadInterface(0, false, LoadConfig{})
 		if len(v.Children) > 0 {
@@ -1312,7 +1300,7 @@ func (v *Variable) loadValueInternal(recurseLevel int, cfg LoadConfig) {
 			if v.Children[0].Kind == reflect.Interface {
 				nextLvl++
 			} else if ptyp, isptr := v.RealType.(*godwarf.PtrType); isptr {
-				_, elemTypIsPtr := resolveTypedef(ptyp.Type).(*godwarf.PtrType)
+				_, elemTypIsPtr := evalop.ResolveTypedef(ptyp.Type).(*godwarf.PtrType)
 				if elemTypIsPtr {
 					nextLvl++
 					checkLvl = true
@@ -1329,7 +1317,7 @@ func (v *Variable) loadValueInternal(recurseLevel int, cfg LoadConfig) {
 
 	case reflect.Chan:
 		sv := v.clone()
-		sv.RealType = resolveTypedef(&(sv.RealType.(*godwarf.ChanType).TypedefType))
+		sv.RealType = evalop.ResolveTypedef(&(sv.RealType.(*godwarf.ChanType).TypedefType))
 		sv = sv.maybeDereference()
 		sv.loadValueInternal(0, loadFullValue)
 		v.Children = sv.Children
@@ -1627,7 +1615,7 @@ func (v *Variable) loadChanInfo() {
 		return
 	}
 	sv := v.clone()
-	sv.RealType = resolveTypedef(&(chanType.TypedefType))
+	sv.RealType = evalop.ResolveTypedef(&(chanType.TypedefType))
 	sv = sv.maybeDereference()
 	if sv.Unreadable != nil || sv.Addr == 0 {
 		return
@@ -2021,7 +2009,7 @@ type mapIterator struct {
 // Code derived from go/src/runtime/hashmap.go
 func (v *Variable) mapIterator() *mapIterator {
 	sv := v.clone()
-	sv.RealType = resolveTypedef(&(sv.RealType.(*godwarf.MapType).TypedefType))
+	sv.RealType = evalop.ResolveTypedef(&(sv.RealType.(*godwarf.MapType).TypedefType))
 	sv = sv.maybeDereference()
 	v.Base = sv.Addr
 
@@ -2269,7 +2257,7 @@ func (v *Variable) readInterface() (_type, data *Variable, isnil bool) {
 
 	v.mem = cacheMemory(v.mem, v.Addr, int(v.RealType.Size()))
 
-	ityp := resolveTypedef(&v.RealType.(*godwarf.InterfaceType).TypedefType).(*godwarf.StructType)
+	ityp := evalop.ResolveTypedef(&v.RealType.(*godwarf.InterfaceType).TypedefType).(*godwarf.StructType)
 
 	// +rtype -field iface.tab *itab
 	// +rtype -field iface.data unsafe.Pointer
@@ -2326,7 +2314,7 @@ func (v *Variable) loadInterface(recurseLevel int, loadData bool, cfg LoadConfig
 
 	deref := false
 	if kind&kindDirectIface == 0 {
-		realtyp := resolveTypedef(typ)
+		realtyp := evalop.ResolveTypedef(typ)
 		if _, isptr := realtyp.(*godwarf.PtrType); !isptr {
 			typ = pointerTo(typ, v.bi.Arch)
 			deref = true

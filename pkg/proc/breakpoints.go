@@ -14,6 +14,7 @@ import (
 	"github.com/go-delve/delve/pkg/dwarf/op"
 	"github.com/go-delve/delve/pkg/dwarf/reader"
 	"github.com/go-delve/delve/pkg/goversion"
+	"github.com/go-delve/delve/pkg/proc/evalop"
 	"github.com/go-delve/delve/pkg/proc/internal/ebpf"
 )
 
@@ -197,17 +198,17 @@ func (bp *Breakpoint) VerboseDescr() []string {
 	for _, breaklet := range bp.Breaklets {
 		switch breaklet.Kind {
 		case UserBreakpoint:
-			r = append(r, fmt.Sprintf("User Cond=%q HitCond=%v", exprToString(breaklet.Cond), lbp.HitCond))
+			r = append(r, fmt.Sprintf("User Cond=%q HitCond=%v", evalop.ExprToString(breaklet.Cond), lbp.HitCond))
 		case NextBreakpoint:
-			r = append(r, fmt.Sprintf("Next Cond=%q", exprToString(breaklet.Cond)))
+			r = append(r, fmt.Sprintf("Next Cond=%q", evalop.ExprToString(breaklet.Cond)))
 		case NextDeferBreakpoint:
-			r = append(r, fmt.Sprintf("NextDefer Cond=%q DeferReturns=%#x", exprToString(breaklet.Cond), breaklet.DeferReturns))
+			r = append(r, fmt.Sprintf("NextDefer Cond=%q DeferReturns=%#x", evalop.ExprToString(breaklet.Cond), breaklet.DeferReturns))
 		case StepBreakpoint:
-			r = append(r, fmt.Sprintf("Step Cond=%q", exprToString(breaklet.Cond)))
+			r = append(r, fmt.Sprintf("Step Cond=%q", evalop.ExprToString(breaklet.Cond)))
 		case WatchOutOfScopeBreakpoint:
-			r = append(r, fmt.Sprintf("WatchOutOfScope Cond=%q checkPanicCall=%v", exprToString(breaklet.Cond), breaklet.checkPanicCall))
+			r = append(r, fmt.Sprintf("WatchOutOfScope Cond=%q checkPanicCall=%v", evalop.ExprToString(breaklet.Cond), breaklet.checkPanicCall))
 		case StackResizeBreakpoint:
-			r = append(r, fmt.Sprintf("StackResizeBreakpoint Cond=%q", exprToString(breaklet.Cond)))
+			r = append(r, fmt.Sprintf("StackResizeBreakpoint Cond=%q", evalop.ExprToString(breaklet.Cond)))
 		case PluginOpenBreakpoint:
 			r = append(r, "PluginOpenBreakpoint")
 		default:

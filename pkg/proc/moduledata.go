@@ -70,11 +70,23 @@ func loadModuleData(bi *BinaryInfo, mem MemoryReadWriter) ([]moduleData, error) 
 	return r, nil
 }
 
-func findModuleDataForType(bi *BinaryInfo, mds []moduleData, typeAddr uint64, mem MemoryReadWriter) *moduleData {
+func findModuleDataForType(mds []moduleData, typeAddr uint64) *moduleData {
 	for i := range mds {
 		if typeAddr >= mds[i].types && typeAddr < mds[i].etypes {
 			return &mds[i]
 		}
 	}
 	return nil
+}
+
+func findModuleDataForImage(mds []moduleData, so *Image) *moduleData {
+	var md *moduleData
+	for i := range mds {
+		if so == nil || mds[i].text > so.StaticBase {
+			if md == nil || mds[i].text < md.text {
+				md = &mds[i]
+			}
+		}
+	}
+	return md
 }

@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	ErrFuncCallNotAllowed   = errors.New("function calls not allowed without using 'call'")
-	DebugPinnerFunctionName = "runtime.debugPinner"
+	ErrFuncCallNotAllowed         = errors.New("function calls not allowed without using 'call'")
+	errFuncCallNotAllowedLitAlloc = errors.New("literal can not be allocated because function calls are not allowed without using 'call'")
+	DebugPinnerFunctionName       = "runtime.debugPinner"
 )
 
 type compileCtx struct {
@@ -373,6 +374,65 @@ func (ctx *compileCtx) compileAST(t ast.Expr) error {
 	case *ast.BasicLit:
 		ctx.pushOp(&PushConst{constant.MakeFromLiteral(node.Value, node.Kind, 0)})
 
+	case *ast.CompositeLit:
+		notimplerr := fmt.Errorf("expression %T not implemented", t)
+		if ctx.flags&HasDebugPinner == 0 {
+			return notimplerr
+		}
+		dtyp, err := ctx.FindTypeExpr(node.Type)
+		if err != nil {
+			return err
+		}
+		typ := ResolveTypedef(dtyp)
+		switch typ := typ.(type) {
+		case *godwarf.StructType:
+			if !ctx.allowCalls {
+				return errFuncCallNotAllowedLitAlloc
+			}
+
+			ctx.compileSpecialCall("runtime.mallocgc", []ast.Expr{
+				&ast.BasicLit{Kind: token.INT, Value: "1"},
+				node.Type,
+				&ast.Ident{Name: "true"},
+			}, []Op{
+				&PushConst{Value: constant.MakeInt64(1)},
+				&PushRuntimeType{dtyp},
+				&PushConst{Value: constant.MakeBool(true)},
+			}, true)
+			ctx.pushOp(&TypeCast{DwarfType: &godwarf.PtrType{Type: dtyp}})
+			ctx.pushOp(&PointerDeref{&ast.StarExpr{X: &ast.Ident{Name: "runtime.mallocgc"}}})
+
+			for i, elt := range node.Elts {
+				var field string
+				var rhe ast.Expr
+				switch elt := elt.(type) {
+				case *ast.KeyValueExpr:
+					rhe = elt.Value
+					ctx.compileAST(elt.Value)
+					field = elt.Key.(*ast.Ident).Name
+				default:
+					rhe = elt
+					ctx.compileAST(elt)
+					field = typ.Field[i].Name
+				}
+				ctx.pushOp(&Dup{})
+				ctx.pushOp(&Select{Name: field})
+				ctx.pushOp(&SetValue{Rhe: rhe})
+			}
+
+		case *godwarf.SliceType:
+			return notimplerr
+
+		case *godwarf.MapType:
+			return notimplerr
+
+		case *godwarf.ArrayType:
+			return notimplerr
+
+		default:
+			return notimplerr
+		}
+
 	default:
 		return fmt.Errorf("expression %T not implemented", t)
 	}
@@ -461,7 +521,7 @@ func (ctx *compileCtx) compileTypeCast(node *ast.CallExpr, ambiguousErr error) e
 	// remove all enclosing parenthesis from the type name
 	fnnode = removeParen(fnnode)
 
-	targetTypeStr := exprToString(removeParen(node.Fun))
+	targetTypeStr := ExprToString(removeParen(node.Fun))
 	styp, err := ctx.FindTypeExpr(fnnode)
 	if err != nil {
 		switch targetTypeStr {
@@ -471,7 +531,7 @@ func (ctx *compileCtx) compileTypeCast(node *ast.CallExpr, ambiguousErr error) e
 			styp = godwarf.FakeSliceType(godwarf.FakeBasicType("int", 32))
 		default:
 			if ambiguousErr != nil && err == reader.ErrTypeNotFound {
-				return fmt.Errorf("could not evaluate function or type %s: %v", exprToString(node.Fun), ambiguousErr)
+				return fmt.Errorf("could not evaluate function or type %s: %v", ExprToString(node.Fun), ambiguousErr)
 			}
 			return err
 		}
@@ -647,7 +707,7 @@ func (ctx *compileCtx) compileFunctionCallOld(node *ast.CallExpr, id int) error 
 	for i, arg := range node.Args {
 		err := ctx.compileAST(arg)
 		if err != nil {
-			return fmt.Errorf("error evaluating %q as argument %d in function %s: %v", exprToString(arg), i+1, exprToString(node.Fun), err)
+			return fmt.Errorf("error evaluating %q as argument %d in function %s: %v", ExprToString(arg), i+1, ExprToString(node.Fun), err)
 		}
 		if isStringLiteral(arg) {
 			ctx.compileAllocLiteralString()
@@ -676,7 +736,7 @@ func (ctx *compileCtx) compileFunctionCallNew(node *ast.CallExpr, id int) error 
 			ctx.compileAllocLiteralString()
 		}
 		if err != nil {
-			return fmt.Errorf("error evaluating %q as argument %d in function %s: %v", exprToString(arg), i+1, exprToString(node.Fun), err)
+			return fmt.Errorf("error evaluating %q as argument %d in function %s: %v", ExprToString(arg), i+1, ExprToString(node.Fun), err)
 		}
 	}
 
@@ -751,8 +811,21 @@ func removeParen(n ast.Expr) ast.Expr {
 	return n
 }
 
-func exprToString(t ast.Expr) string {
+func ExprToString(t ast.Expr) string {
 	var buf bytes.Buffer
 	printer.Fprint(&buf, token.NewFileSet(), t)
 	return buf.String()
+}
+
+func ResolveTypedef(typ godwarf.Type) godwarf.Type {
+	for {
+		switch tt := typ.(type) {
+		case *godwarf.TypedefType:
+			typ = tt.Type
+		case *godwarf.QualType:
+			typ = tt.Type
+		default:
+			return typ
+		}
+	}
 }
