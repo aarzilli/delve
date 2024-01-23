@@ -396,9 +396,7 @@ func saveVariable(v *Variable) {
 	v.mem = cacheMemory(v.mem, v.Addr, int(v.RealType.Size()))
 	v.Flags |= variableSaved
 	if cachemem, ok := v.mem.(*memCache); ok {
-		err := cachemem.load()
-		_ = err
-		//TODO: do something with err but what?!
+		v.Unreadable = cachemem.load()
 	}
 }
 

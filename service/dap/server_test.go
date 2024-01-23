@@ -4419,10 +4419,10 @@ func TestEvaluateCallRequest(t *testing.T) {
 			func() {
 				client.LaunchRequest("exec", fixture.Path, !stopOnEntry)
 			},
-			fixture.Source, []int{88},
+			fixture.Source, []int{94},
 			[]onBreakpoint{{ // Stop in makeclos()
 				execute: func() {
-					checkStop(t, client, 1, "main.makeclos", 88)
+					checkStop(t, client, 1, "main.makeclos", 94)
 
 					// Topmost frame: both types of expressions should work
 					client.EvaluateRequest("callstacktrace", 1000, "this context will be ignored")
@@ -4461,7 +4461,7 @@ func TestEvaluateCallRequest(t *testing.T) {
 					client.ContinueRequest(1)
 					client.ExpectContinueResponse(t)
 					client.ExpectStoppedEvent(t)
-					checkStop(t, client, 1, "main.makeclos", 88)
+					checkStop(t, client, 1, "main.makeclos", 94)
 
 					// Inject a call for the same function that is stopped at breakpoint:
 					// it might stop at the exact same breakpoint on the same goroutine,
@@ -4474,13 +4474,13 @@ func TestEvaluateCallRequest(t *testing.T) {
 					if !checkErrorMessageFormat(erres.Body.Error, "Unable to evaluate expression: call stopped") {
 						t.Errorf("\ngot %#v\nwant Format=\"Unable to evaluate expression: call stopped\"", erres)
 					}
-					checkStop(t, client, stopped.Body.ThreadId, "main.makeclos", 88)
+					checkStop(t, client, stopped.Body.ThreadId, "main.makeclos", 94)
 
 					// Complete the call and get back to original breakpoint in makeclos()
 					client.ContinueRequest(1)
 					client.ExpectContinueResponse(t)
 					client.ExpectStoppedEvent(t)
-					checkStop(t, client, 1, "main.makeclos", 88)
+					checkStop(t, client, 1, "main.makeclos", 94)
 				},
 				disconnect: false,
 			}, { // Stop at runtime breakpoint
@@ -6079,7 +6079,7 @@ func TestSetVariable(t *testing.T) {
 
 					// Args of foobar(baz string, bar FooBar)
 					checkVarExact(t, locals, 1, "bar", "bar", `main.FooBar {Baz: 10, Bur: "lorem"}`, "main.FooBar", hasChildren)
-					tester.failSetVariable(localsScope, "bar", `main.FooBar {Baz: 42, Bur: "ipsum"}`, "*ast.CompositeLit not implemented")
+					tester.failSetVariable(localsScope, "bar", `main.FooBar {Baz: 42, Bur: "ipsum"}`, "Unable to set variable: function calls not allowed without using 'call'")
 
 					// Nested field.
 					barRef := checkVarExact(t, locals, 1, "bar", "bar", `main.FooBar {Baz: 10, Bur: "lorem"}`, "main.FooBar", hasChildren)
