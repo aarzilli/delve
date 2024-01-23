@@ -38,6 +38,7 @@ type evalLookup interface {
 	HasGlobal(string, string) bool
 	HasBuiltin(string) bool
 	LookupRegisterName(string) (int, bool)
+	PtrSize() int
 }
 
 type Flags uint8
@@ -399,24 +400,28 @@ func (ctx *compileCtx) compileAST(t ast.Expr) error {
 				&PushRuntimeType{dtyp},
 				&PushConst{Value: constant.MakeBool(true)},
 			}, true)
-			ctx.pushOp(&TypeCast{DwarfType: &godwarf.PtrType{Type: dtyp}})
-			ctx.pushOp(&PointerDeref{&ast.StarExpr{X: &ast.Ident{Name: "runtime.mallocgc"}}})
+			ctx.pushOp(&TypeCast{
+				DwarfType: godwarf.FakePointerType(dtyp, int64(ctx.PtrSize())),
+				Node: &ast.CallExpr{
+					Fun:  node.Type,
+					Args: []ast.Expr{&ast.Ident{Name: "new allocation"}}}})
+			ctx.pushOp(&PointerDeref{&ast.StarExpr{X: &ast.Ident{Name: "new allocation"}}})
 
 			for i, elt := range node.Elts {
-				var field string
+				ctx.pushOp(&Dup{})
+
 				var rhe ast.Expr
 				switch elt := elt.(type) {
 				case *ast.KeyValueExpr:
+					ctx.pushOp(&Select{Name: elt.Key.(*ast.Ident).Name})
 					rhe = elt.Value
 					ctx.compileAST(elt.Value)
-					field = elt.Key.(*ast.Ident).Name
 				default:
+					ctx.pushOp(&Select{Name: typ.Field[i].Name})
 					rhe = elt
 					ctx.compileAST(elt)
-					field = typ.Field[i].Name
 				}
-				ctx.pushOp(&Dup{})
-				ctx.pushOp(&Select{Name: field})
+				ctx.pushOp(&Roll{1})
 				ctx.pushOp(&SetValue{Rhe: rhe})
 			}
 

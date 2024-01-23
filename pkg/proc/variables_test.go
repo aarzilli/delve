@@ -1313,9 +1313,9 @@ func TestCallFunction(t *testing.T) {
 	}
 
 	var testcases123 = []testCaseCallFunction{
-		{`mul2(main.a2struct{X: 3})`, []string{":int:6"}, nil, 1},
+		{`mul2(main.a2struct{Y: 3})`, []string{":int:6"}, nil, 1},
 		{`mul2(main.a2struct{4})`, []string{":int:8"}, nil, 1},
-		{`mul2ptr(&main.a2struct{X: 3})`, []string{":int:6"}, nil, 1},
+		{`mul2ptr(&main.a2struct{Y: 3})`, []string{":int:6"}, nil, 1},
 		{`mul2ptr(&main.a2struct{1})`, []string{":int:2"}, nil, 1},
 	}
 

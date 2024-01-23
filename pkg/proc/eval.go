@@ -288,6 +288,10 @@ func (scope scopeToEvalLookup) HasBuiltin(name string) bool {
 	return supportedBuiltins[name] != nil
 }
 
+func (scope scopeToEvalLookup) PtrSize() int {
+	return scope.BinInfo.Arch.ptrSize
+}
+
 // ChanGoroutines returns the list of goroutines waiting to receive from or
 // send to the channel.
 func (scope *EvalScope) ChanGoroutines(expr string, start, count int) ([]int64, error) {
@@ -1304,13 +1308,18 @@ func (scope *EvalScope) evalTypeCast(op *evalop.TypeCast, stack *evalStack) {
 
 	// compatible underlying types
 	if typeCastCompatibleTypes(argv.RealType, typ) {
-		if ptyp, isptr := typ.(*godwarf.PtrType); argv.Kind == reflect.Ptr && argv.loaded && len(argv.Children) > 0 && isptr {
+		ptyp, isptr := typ.(*godwarf.PtrType)
+		_, isvoid := argv.DwarfType.(*godwarf.VoidType)
+		if (argv.Kind == reflect.Ptr || isvoid) && argv.loaded && len(argv.Children) > 0 && isptr {
 			cv := argv.Children[0]
 			argv.Children[0] = *newVariable(cv.Name, cv.Addr, ptyp.Type, cv.bi, cv.mem)
 			argv.Children[0].OnlyAddr = true
 		}
 		argv.RealType = typ
 		argv.DwarfType = op.DwarfType
+		if isptr {
+			argv.Kind = reflect.Ptr // could be converting from unsafe.Pointer
+		}
 		stack.push(argv)
 		return
 	}
@@ -2104,8 +2113,7 @@ func (scope *EvalScope) evalAddrOf(op *evalop.AddrOf, stack *evalStack) {
 func (v *Variable) pointerToVariable() *Variable {
 	v.OnlyAddr = true
 
-	typename := "*" + v.DwarfType.Common().Name
-	rv := v.newVariable("", 0, &godwarf.PtrType{CommonType: godwarf.CommonType{ByteSize: int64(v.bi.Arch.PtrSize()), Name: typename}, Type: v.DwarfType}, v.mem)
+	rv := v.newVariable("", 0, godwarf.FakePointerType(v.DwarfType, int64(v.bi.Arch.PtrSize())), v.mem)
 	rv.Children = []Variable{*v}
 	rv.loaded = true
 
