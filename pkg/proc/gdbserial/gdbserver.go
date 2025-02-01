@@ -937,7 +937,7 @@ continueLoop:
 	}
 
 	if p.BinInfo().GOOS == "linux" {
-		if err := linutil.ElfUpdateSharedObjects(p); err != nil {
+		if err := linutil.ElfUpdateSharedObjects(p, cctx); err != nil {
 			return nil, stopReason, err
 		}
 	}

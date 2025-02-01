@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"bytes"
 	"cmp"
+	"context"
 	"errors"
 	"fmt"
 	"go/parser"
@@ -3022,7 +3023,18 @@ func printfile(t *Term, filename string, line int, showArrow bool) error {
 	var file *os.File
 	path := t.substitutePath(filename)
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		foundPath, err := debuginfod.GetSource(t.client.BuildID(), filename)
+		ctx, cancel := context.WithCancel(context.Background())
+		t.setCancelableAction(cancel)
+		debuginfodctx := &debuginfod.Context{
+			GetContext: func() context.Context {
+				return ctx
+			},
+			Notify: func(s string) {
+				fmt.Print(s)
+			},
+		}
+		foundPath, err := debuginfod.GetSource(debuginfodctx, t.client.BuildID(), filename)
+		t.setCancelableAction(nil)
 		if err == nil {
 			path = foundPath
 		}

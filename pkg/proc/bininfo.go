@@ -841,16 +841,16 @@ func (bi *BinaryInfo) LoadBinaryInfo(path string, entryPoint uint64, debugInfoDi
 
 	bi.DebugInfoDirectories = debugInfoDirs
 
-	return bi.AddImage(path, entryPoint)
+	return bi.AddImage(path, entryPoint, nil)
 }
 
-func loadBinaryInfo(bi *BinaryInfo, image *Image, path string, entryPoint uint64) error {
+func loadBinaryInfo(bi *BinaryInfo, image *Image, path string, entryPoint uint64, debuginfodctx *debuginfod.Context) error {
 	var wg sync.WaitGroup
 	defer wg.Wait()
 
 	switch bi.GOOS {
 	case "linux", "freebsd":
-		return loadBinaryInfoElf(bi, image, path, entryPoint, &wg)
+		return loadBinaryInfoElf(bi, image, path, entryPoint, debuginfodctx, &wg)
 	case "windows":
 		return loadBinaryInfoPE(bi, image, path, entryPoint, &wg)
 	case "darwin":
@@ -1025,7 +1025,7 @@ func (image *Image) Stripped() bool {
 // Addr is the relocated entry point for the executable and staticBase (i.e.
 // the relocation offset) for all other images.
 // The first image added must be the executable file.
-func (bi *BinaryInfo) AddImage(path string, addr uint64) error {
+func (bi *BinaryInfo) AddImage(path string, addr uint64, debunginfodctx *debuginfod.Context) error {
 	// Check if the image is already present.
 	if len(bi.Images) > 0 && !strings.HasPrefix(path, "/") {
 		return nil
@@ -1043,7 +1043,7 @@ func (bi *BinaryInfo) AddImage(path string, addr uint64) error {
 	// add Image regardless of error so that we don't attempt to re-add it every time we stop
 	image.index = len(bi.Images)
 	bi.Images = append(bi.Images, image)
-	err := loadBinaryInfo(bi, image, path, addr)
+	err := loadBinaryInfo(bi, image, path, addr, debunginfodctx)
 	if err != nil {
 		bi.Images[len(bi.Images)-1].loadErr = err
 	}
@@ -1428,7 +1428,7 @@ func (bi *BinaryInfo) parseDebugFrameGeneral(image *Image, debugFrameBytes []byt
 //
 // Alternatively, if the debug file cannot be found be the build-id, Delve
 // will look in directories specified by the debug-info-directories config value.
-func (bi *BinaryInfo) openSeparateDebugInfo(image *Image, exe *elf.File, debugInfoDirectories []string) (*os.File, *elf.File, error) {
+func (bi *BinaryInfo) openSeparateDebugInfo(image *Image, exe *elf.File, debugInfoDirectories []string, debuginfodctx *debuginfod.Context) (*os.File, *elf.File, error) {
 	exePath := image.Path
 	exeName := filepath.Base(image.Path)
 	if strings.HasPrefix(image.Path, "/proc") {
@@ -1521,7 +1521,8 @@ func (bi *BinaryInfo) openSeparateDebugInfo(image *Image, exe *elf.File, debugIn
 	// has debuginfod so that we can use that in order to find any relevant debug information.
 	if debugFilePath == "" {
 		var err error
-		debugFilePath, err = debuginfod.GetDebuginfo(image.BuildID)
+		fmt.Printf("debuginfod %v\n", image.BuildID)
+		debugFilePath, err = debuginfod.GetDebuginfo(debuginfodctx, image.BuildID)
 		if err != nil {
 			return nil, nil, ErrNoDebugInfoFound
 		}
@@ -1547,7 +1548,7 @@ func (bi *BinaryInfo) openSeparateDebugInfo(image *Image, exe *elf.File, debugIn
 }
 
 // loadBinaryInfoElf specifically loads information from an ELF binary.
-func loadBinaryInfoElf(bi *BinaryInfo, image *Image, path string, addr uint64, wg *sync.WaitGroup) error {
+func loadBinaryInfoElf(bi *BinaryInfo, image *Image, path string, addr uint64, debuginfodctx *debuginfod.Context, wg *sync.WaitGroup) error {
 	exe, err := os.OpenFile(path, 0, os.ModePerm)
 	if err != nil {
 		return err
@@ -1589,7 +1590,7 @@ func loadBinaryInfoElf(bi *BinaryInfo, image *Image, path string, addr uint64, w
 	if dwerr != nil {
 		var sepFile *os.File
 		var serr error
-		sepFile, dwarfFile, serr = bi.openSeparateDebugInfo(image, elfFile, bi.DebugInfoDirectories)
+		sepFile, dwarfFile, serr = bi.openSeparateDebugInfo(image, elfFile, bi.DebugInfoDirectories, debuginfodctx)
 		if serr != nil {
 			if len(bi.Images) <= 1 {
 				fmt.Fprintln(os.Stderr, "Warning: no debug info found, some functionality will be missing such as stack traces and variable evaluation.")

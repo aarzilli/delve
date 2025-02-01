@@ -139,7 +139,7 @@ func readCString(p proc.Process, addr uint64) (string, error) {
 // dynamic linker from the .dynamic section and uses it to update p.BinInfo().
 // See the SysV ABI for a description of how the .dynamic section works:
 // https://www.sco.com/developers/gabi/latest/contents.html
-func ElfUpdateSharedObjects(p proc.Process) error {
+func ElfUpdateSharedObjects(p proc.Process, cctx *proc.ContinueOnceContext) error {
 	bi := p.BinInfo()
 	if bi.ElfDynamicSection.Addr == 0 {
 		// no dynamic section, therefore nothing to do here
@@ -181,7 +181,7 @@ func ElfUpdateSharedObjects(p proc.Process) error {
 		if !first || lm.addr != 0 {
 			// First entry is the executable, we don't need to add it, and doing so
 			// can cause duplicate entries due to base address mismatches.
-			bi.AddImage(lm.name, lm.addr)
+			bi.AddImage(lm.name, lm.addr, cctx.DebuginfodContext)
 		}
 		libs = append(libs, lm.name)
 		first = false

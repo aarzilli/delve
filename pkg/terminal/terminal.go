@@ -80,6 +80,9 @@ type Term struct {
 	quitting      bool
 
 	traceNonInteractive bool
+
+	cancelableAction   func()
+	cancelableActionMu sync.Mutex
 }
 
 type displayEntry struct {
@@ -198,6 +201,10 @@ func (t *Term) Close() {
 
 func (t *Term) sigintGuard(ch <-chan os.Signal, multiClient bool) {
 	for range ch {
+		if cancel := t.getCancelableAction(); cancel != nil {
+			cancel()
+			continue
+		}
 		t.longCommandCancel()
 		t.starlarkEnv.Cancel()
 		state, err := t.client.GetStateNonBlocking()
@@ -626,6 +633,18 @@ func (t *Term) longCommandCanceled() bool {
 // RedirectTo redirects the output of this terminal to the specified writer.
 func (t *Term) RedirectTo(w io.Writer) {
 	t.stdout.pw.w = w
+}
+
+func (t *Term) setCancelableAction(cancel func()) {
+	t.cancelableActionMu.Lock()
+	defer t.cancelableActionMu.Unlock()
+	t.cancelableAction = cancel
+}
+
+func (t *Term) getCancelableAction() func() {
+	t.cancelableActionMu.Lock()
+	defer t.cancelableActionMu.Unlock()
+	return t.cancelableAction
 }
 
 // isErrProcessExited returns true if `err` is an RPC error equivalent of proc.ErrProcessExited

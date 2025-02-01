@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/go-delve/delve/pkg/elfwriter"
+	"github.com/go-delve/delve/pkg/proc/debuginfod"
 	"github.com/go-delve/delve/pkg/proc/internal/ebpf"
 )
 
@@ -128,6 +129,7 @@ type ContinueOnceContext struct {
 	// signalled to stop as a result of a Halt API call. Used to disambiguate
 	// why a thread is found to have stopped.
 	manualStopRequested bool
+	DebuginfodContext   *debuginfod.Context
 }
 
 // CheckAndClearManualStopRequest will check for a manual

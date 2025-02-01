@@ -2,14 +2,17 @@ package proc
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"go/parser"
 	"go/token"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-delve/delve/pkg/logflags"
+	"github.com/go-delve/delve/pkg/proc/debuginfod"
 )
 
 // TargetGroup represents a group of target processes being debugged that
@@ -64,6 +67,10 @@ func NewGroup(procgrp ProcessGroup, cfg NewTargetGroupConfig) (*TargetGroup, Add
 		cfg:                cfg,
 		CanDump:            cfg.CanDump,
 	}
+	grp.cctx.DebuginfodContext = &debuginfod.Context{GetContext: func() context.Context {
+		ctx, _ := context.WithTimeout(context.Background(), time.Second)
+		return ctx
+	}, Notify: nil}
 	return grp, grp.addTarget
 }
 
@@ -523,6 +530,13 @@ func (grp *TargetGroup) FollowExec(v bool, regex string) error {
 // FollowExecEnabled returns true if follow exec is enabled
 func (grp *TargetGroup) FollowExecEnabled() bool {
 	return grp.followExecEnabled
+}
+
+// SetDebuginfodContext sets the debuginfod context for all subsequent calls of continue.
+// The debuginfod context can be used to receive notifications about
+// prograss made by debuginfod downloads and to cancel them.
+func (grp *TargetGroup) SetDebuginfodContext(ctx *debuginfod.Context) {
+	grp.cctx.DebuginfodContext = ctx
 }
 
 // ValidTargets iterates through all valid targets in Group.

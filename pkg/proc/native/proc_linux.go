@@ -170,7 +170,7 @@ func Attach(pid int, waitFor *proc.WaitFor, debugInfoDirs []string) (*proc.Targe
 
 	// ElfUpdateSharedObjects can only be done after we initialize because it
 	// needs an initialized BinaryInfo object to work.
-	err = linutil.ElfUpdateSharedObjects(dbp)
+	err = linutil.ElfUpdateSharedObjects(dbp, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -373,7 +373,7 @@ func (dbp *nativeProcess) updateThreadList() error {
 			return err
 		}
 	}
-	return linutil.ElfUpdateSharedObjects(dbp)
+	return linutil.ElfUpdateSharedObjects(dbp, nil)
 }
 
 func findExecutable(path string, pid int) string {
@@ -787,7 +787,7 @@ func (procgrp *processGroup) stop(cctx *proc.ContinueOnceContext, trapthread *na
 }
 
 func stop1(cctx *proc.ContinueOnceContext, dbp *nativeProcess, trapthread *nativeThread, switchTrapthread *bool) error {
-	if err := linutil.ElfUpdateSharedObjects(dbp); err != nil {
+	if err := linutil.ElfUpdateSharedObjects(dbp, cctx); err != nil {
 		return err
 	}
 

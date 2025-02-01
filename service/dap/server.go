@@ -11,6 +11,7 @@ package dap
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -37,6 +38,7 @@ import (
 	"github.com/go-delve/delve/pkg/locspec"
 	"github.com/go-delve/delve/pkg/logflags"
 	"github.com/go-delve/delve/pkg/proc"
+	"github.com/go-delve/delve/pkg/proc/debuginfod"
 
 	"github.com/go-delve/delve/service"
 	"github.com/go-delve/delve/service/api"
@@ -137,7 +139,8 @@ type Session struct {
 	// binaryToRemove is the temp compiled binary to be removed on disconnect (if any).
 	binaryToRemove string
 	// noDebugProcess is set for the noDebug launch process.
-	noDebugProcess *process
+	noDebugProcess   *process
+	debuginfodCancel func()
 
 	// sendingMu synchronizes writing to conn
 	// to ensure that messages do not get interleaved
@@ -873,7 +876,7 @@ func (s *Session) onInitializeRequest(request *dap.InitializeRequest) {
 	response.Body.SupportsSetExpression = false
 	response.Body.SupportsLoadedSourcesRequest = false
 	response.Body.SupportsReadMemoryRequest = false
-	response.Body.SupportsCancelRequest = false
+	response.Body.SupportsCancelRequest = true
 	s.send(response)
 }
 
@@ -3400,7 +3403,10 @@ func checkOutOfAddressSpace(pc uint64, bi *proc.BinaryInfo) (bool, uint64) {
 // onCancelRequest sends a not-yet-implemented error response.
 // Capability 'supportsCancelRequest' is not set 'initialize' response.
 func (s *Session) onCancelRequest(request *dap.CancelRequest) {
-	s.sendNotYetImplementedErrorResponse(request.Request)
+	if s.debuginfodCancel != nil {
+		s.debuginfodCancel()
+		s.debuginfodCancel = nil
+	}
 }
 
 // onExceptionInfoRequest handles 'exceptionInfo' requests.
@@ -3688,6 +3694,46 @@ func (s *Session) resumeOnce(command string, allowNextStateChange *syncflag) (bo
 // asynchronous command has completed setup or was interrupted
 // due to an error, so the server is ready to receive new requests.
 func (s *Session) runUntilStopAndNotify(command string, allowNextStateChange *syncflag) {
+	debuginfodProgressStarted := false
+	var progressId string
+
+	if s.clientCapabilities.supportsProgressReporting {
+		ctx, debuginfodCancel := context.WithCancel(context.Background())
+		s.debuginfodCancel = debuginfodCancel
+		progressId = strconv.Itoa(int(time.Now().Unix()))
+
+		s.debugger.LockTarget()
+		s.debugger.TargetGroup().SetDebuginfodContext(&debuginfod.Context{
+			GetContext: func() context.Context {
+				return ctx
+			},
+			Notify: func(msg string) {
+				if !debuginfodProgressStarted {
+					s.send(&dap.ProgressStartEvent{
+						Event: *newEvent("stopped"),
+						Body: dap.ProgressStartEventBody{
+							ProgressId:  progressId,
+							Title:       "Debuginfod-find download",
+							Cancellable: true,
+							Message:     msg,
+						},
+					})
+					debuginfodProgressStarted = true
+					return
+				} else {
+					s.send(&dap.ProgressUpdateEvent{
+						Event: *newEvent("stopped"),
+						Body: dap.ProgressUpdateEventBody{
+							ProgressId: progressId,
+							Message:    msg,
+						},
+					})
+				}
+			},
+		})
+		s.debugger.UnlockTarget()
+	}
+
 	state, err := s.runUntilStop(command, allowNextStateChange)
 
 	if s.conn.isClosed() {
@@ -3791,6 +3837,14 @@ func (s *Session) runUntilStopAndNotify(command string, allowNextStateChange *sy
 	// error while this one completes, it is possible that the error response
 	// will arrive after this stopped event.
 	s.send(stopped)
+	if debuginfodProgressStarted {
+		s.send(&dap.ProgressEndEvent{
+			Event: *newEvent("stopped"),
+			Body: dap.ProgressEndEventBody{
+				ProgressId: progressId,
+			},
+		})
+	}
 
 	// Send an output event with more information if next is in progress.
 	if state != nil && state.NextInProgress {
