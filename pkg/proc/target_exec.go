@@ -446,7 +446,7 @@ func stepInstructionOut(grp *TargetGroup, dbp *Target, curthread Thread, fnname1
 		}
 		loc, err := ThreadLocation(curthread)
 		var locFnName string
-		if loc.Fn != nil && !loc.Fn.cu.image.Stripped() {
+		if loc != nil && loc.Fn != nil && !loc.Fn.cu.image.Stripped() {
 			locFnName = loc.Fn.Name
 			// Calls to runtime.Breakpoint are inlined in some versions of Go when
 			// inlining is enabled. Here we attempt to resolve any inlining.
