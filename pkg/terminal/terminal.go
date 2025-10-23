@@ -23,7 +23,6 @@ import (
 	"github.com/go-delve/delve/pkg/locspec"
 	"github.com/go-delve/delve/pkg/proc"
 	"github.com/go-delve/delve/pkg/terminal/colorize"
-	"github.com/go-delve/delve/pkg/terminal/starbind"
 	"github.com/go-delve/delve/service"
 	"github.com/go-delve/delve/service/api"
 )
@@ -68,8 +67,6 @@ type Term struct {
 	stackTraceColors api.StackTraceColors
 
 	historyFile *os.File
-
-	starlarkEnv *starbind.Env
 
 	substitutePathRulesCache [][2]string
 
@@ -178,7 +175,6 @@ func New(client service.Client, conf *config.Config) *Term {
 		})
 	}
 
-	t.starlarkEnv = starbind.New(starlarkContext{t}, t.stdout)
 	return t
 }
 
@@ -261,7 +257,7 @@ func (t *Term) sigintGuard(ch <-chan os.Signal, multiClient bool) {
 		}
 
 		t.longCommandCancel()
-		t.starlarkEnv.Cancel()
+		t.client.EvalStarlarkCancel(0, true)
 		state, err := t.client.GetStateNonBlocking()
 		if err == nil && state.Recording {
 			fmt.Fprintf(t.stdout, "received SIGINT, stopping recording (will not forward signal)\n")

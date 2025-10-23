@@ -786,3 +786,32 @@ type TypeInfoField struct {
 type TypeInfoMethod struct {
 	Name string
 }
+
+type EvalStarlarkFlags int
+
+const (
+	EvalStarlarkReset EvalStarlarkFlags = 1 << iota
+	EvalStarlarkCallCommand
+)
+
+type StarlarkOutKind int
+
+const (
+	StarlarkDone            StarlarkOutKind = iota
+	StarlarkDlvCommand                      // execute dlv_command, arguments are [ command_name ]
+	StarlarkWriteFile                       // write_file, arguments are [ file_name, contents ]
+	StarlarkAppendFile                      // append_file, arguments are [file_name, contents ]
+	StarlarkReadFile                        // read_file, arguments are [file_name ]
+	StarlarkPrint                           // print, contents are in Output
+	StarlarkRegisterCommand                 // register command, arguments are [ command_name, help_message ]
+
+	StarlarkStdin = "<stdin>"
+)
+
+type EvalStarlarkOut struct {
+	ThreadID    uint64
+	Output      string
+	Kind        StarlarkOutKind
+	Args        []string // arguments for when Kind is not api.StarlarkDone
+	IsCancelled bool
+}
