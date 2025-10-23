@@ -2629,7 +2629,7 @@ func (c *Commands) sourceCommand(t *Term, ctx callContext, args string) error {
 	}
 
 	if args == "-" {
-		return t.starlarkEnv.REPL()
+		return starlarkRepl(t, c)
 	}
 
 	if runtime.GOOS != "windows" && strings.HasPrefix(args, "~") {
@@ -2644,8 +2644,7 @@ func (c *Commands) sourceCommand(t *Term, ctx callContext, args string) error {
 	}
 
 	if filepath.Ext(args) == ".star" {
-		_, err := t.starlarkEnv.Execute(args, nil, "main", nil)
-		return err
+		return starlarkSource(t, c, args)
 	}
 
 	return c.executeFile(t, args)
