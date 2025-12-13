@@ -609,7 +609,7 @@ func TestComplexSetting(t *testing.T) {
 	})
 }
 
-func getEvalExpressionTestCases() []varTest {
+func getEvalExpressionTestCases(hasDebugPinner bool) []varTest {
 	testcases := []varTest{
 		// slice/array/string subscript
 		{"s1[0]", false, "\"one\"", "\"one\"", "string", nil},
@@ -669,9 +669,6 @@ func getEvalExpressionTestCases() []varTest {
 		{"mnil[\"Malone\"]", false, "", "", "", errors.New("key not found")},
 		{"m1[80:]", false, "", "", "", errors.New("map index out of bounds")},
 		{"mlarge", false, "map[main.largestruct]main.largestruct [{name: \"one\", v: [256]uint8 [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,...+192 more]}: {name: \"oneval\", v: [256]uint8 [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,...+192 more]}, ]", "map[main.largestruct]main.largestruct [...]", "map[main.largestruct]main.largestruct", nil},
-		{"m3[main.astruct{1,1}]", false, "42", "42", "int", nil},
-		{"m4[main.astruct{2,2}]", false, "main.astruct {A: 22, B: 22}", "main.astruct {A: 22, B: 22}", "main.astruct", nil},
-		{"m3[main.astruct{3,3}]", false, "", "", "", errors.New("key not found")},
 
 		// interfaces
 		{"err1", true, "error(*main.astruct) *{A: 1, B: 2}", "error(*main.astruct) 0x…", "error", nil},
@@ -951,6 +948,13 @@ func getEvalExpressionTestCases() []varTest {
 		{`badslice`, false, `(unreadable non-zero length array with nil base)`, `(unreadable non-zero length array with nil base)`, "[]int", nil},
 	}
 
+	if hasDebugPinner {
+		testcases = append(testcases,
+			varTest{"m3[main.astruct{1,1}]", false, "42", "42", "int", nil},
+			varTest{"m4[main.astruct{2,2}]", false, "main.astruct {A: 22, B: 22}", "main.astruct {A: 22, B: 22}", "main.astruct", nil},
+			varTest{"m3[main.astruct{3,3}]", false, "", "", "", errors.New("key not found")})
+	}
+
 	// Conversions to ptr-to-ptr types
 	if goversion.VersionAfterOrEqual(runtime.Version(), 1, 24) {
 		testcases = append(testcases, varTest{`**(**maps.Map)(uintptr(&m1))`, false, `…`, `…`, "internal/runtime/maps.Map", nil})
@@ -960,7 +964,6 @@ func getEvalExpressionTestCases() []varTest {
 
 	if goversion.VersionAfterOrEqualRev(runtime.Version(), 1, 25, 2) {
 		testcases = append(testcases, varTest{"iface7", true, "interface {}(main.OnlyUsedInInterface) {s: \"test\"}", "interface {}(main.OnlyUsedInInterface) {s: \"test\"}", "interface {}", nil})
-
 	}
 
 	return testcases
@@ -979,10 +982,10 @@ func (err *altError) Error() string {
 }
 
 func TestEvalExpression(t *testing.T) {
-	testcases := getEvalExpressionTestCases()
 	protest.AllowRecording(t)
 	withTestProcess("testvariables2", t, func(p *proc.Target, grp *proc.TargetGroup, fixture protest.Fixture) {
 		assertNoError(grp.Continue(), t, "Continue() returned an error")
+		testcases := getEvalExpressionTestCases(p.BinInfo().HasDebugPinner())
 		for i, tc := range testcases {
 			t.Run(strconv.Itoa(i), func(t *testing.T) {
 				t.Logf("%q", tc.name)

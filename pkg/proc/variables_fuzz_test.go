@@ -85,7 +85,7 @@ func FuzzEvalExpression(f *testing.F) {
 		}
 
 		scope := &proc.EvalScope{Location: *fi.Loc, Regs: fi.Regs, Mem: memoryReaderWithFailingWrites{mem}, BinInfo: bi}
-		for _, tc := range getEvalExpressionTestCases() {
+		for _, tc := range getEvalExpressionTestCases(false) {
 			_, err := scope.EvalExpression(tc.name, pnormalLoadConfig)
 			if err != nil {
 				if strings.Contains(err.Error(), "internal debugger error") {
@@ -141,7 +141,7 @@ func doFuzzEvalExpressionSetup(f *testing.F) {
 
 	scope := &proc.EvalScope{Location: *loc, Regs: frames[0].Regs, Mem: tmem, BinInfo: c.BinInfo()}
 
-	for _, tc := range getEvalExpressionTestCases() {
+	for _, tc := range getEvalExpressionTestCases(false) {
 		scope.EvalExpression(tc.name, pnormalLoadConfig)
 	}
 

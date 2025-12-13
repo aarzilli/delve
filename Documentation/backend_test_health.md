@@ -32,7 +32,8 @@ Tests skipped by each supported backend:
 	* 1 broken in linux ppc64le
 * linux/ppc64le/native/pie skipped = 3
 	* 3 broken - pie mode
-* linux/riscv64 skipped = 1
+* linux/riscv64 skipped = 2
+	* 1 not implemented
 	* 1 not working on linux/riscv64
 * loong64 skipped = 7
 	* 1 broken - global variable symbolication
@@ -43,9 +44,9 @@ Tests skipped by each supported backend:
 	* 6 broken
 	* 1 broken - global variable symbolication
 	* 7 not implemented
-* riscv64 skipped = 6
+* riscv64 skipped = 7
 	* 1 broken - global variable symbolication
-	* 5 not implemented
+	* 6 not implemented
 * windows skipped = 9
 	* 1 broken
 	* 2 not working on windows

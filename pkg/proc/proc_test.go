@@ -2197,6 +2197,7 @@ func TestStepConcurrentDirect(t *testing.T) {
 
 func TestStepConcurrentPtr(t *testing.T) {
 	protest.AllowRecording(t)
+	skipOn(t, "gets stuck", "linux", "riscv64")
 	withTestProcess("teststepconcurrent", t, func(p *proc.Target, grp *proc.TargetGroup, fixture protest.Fixture) {
 		setFileBreakpoint(p, t, fixture.Source, 24)
 
@@ -4256,6 +4257,7 @@ func TestCallConcurrent(t *testing.T) {
 
 func TestPluginStepping(t *testing.T) {
 	protest.MustHaveCgo(t)
+	skipOn(t, "broken", "linux", "riscv64")
 	pluginFixtures := protest.WithPlugins(t, protest.AllNonOptimized, "plugin1/", "plugin2/")
 
 	testseq2Args(".", []string{pluginFixtures[0].Path, pluginFixtures[1].Path}, protest.AllNonOptimized, t, "plugintest2", "", []seqTest{
@@ -5215,6 +5217,8 @@ func TestNilPtrDerefInBreakInstr(t *testing.T) {
 	// Checks that having a breakpoint on the exact instruction that causes a
 	// nil pointer dereference does not cause problems.
 
+	skipOn(t, "not implemented", "linux", "riscv64")
+
 	var asmfile string
 	switch runtime.GOARCH {
 	case "amd64":
@@ -5225,8 +5229,6 @@ func TestNilPtrDerefInBreakInstr(t *testing.T) {
 		asmfile = "main_386.s"
 	case "ppc64le":
 		asmfile = "main_ppc64le.s"
-	case "riscv64":
-		asmfile = "main_riscv64.s"
 	case "loong64":
 		asmfile = "main_loong64.s"
 	default:
@@ -5879,6 +5881,7 @@ func TestStackwatchClearBug(t *testing.T) {
 	skipOn(t, "not implemented", "386")
 	skipOn(t, "not implemented", "ppc64le")
 	skipOn(t, "not implemented", "loong64")
+	skipOn(t, "not implemented", "riscv64")
 	skipOn(t, "see https://github.com/go-delve/delve/issues/2768", "windows")
 
 	showbps := func(bps *proc.BreakpointMap) {

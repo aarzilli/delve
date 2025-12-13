@@ -6,21 +6,12 @@ version=$1
 arch=$2
 
 apt-get -qq update
-if [ "$arch" = "ppc64le" ]; then
+if [ "$arch" = "ppc64le" ] || [ "$arch" = "riscv64" ]; then
 	apt-get install --no-upgrade -y wget jq
 else
 	apt-get install --no-upgrade -y gcc wget jq lsof
-fi
-
-
-if [ "$arch" != "ppc64le" ]; then
 	apt-get install -y dwz
 	dwz --version
-fi
-
-if [ "$arch" == "riscv64" ]; then
-	apt-get install -y git
-	git --version
 fi
 
 function getgo {
@@ -57,11 +48,10 @@ GOPATH=$(pwd)/go
 export GOPATH
 export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
 go version
-if [ "$arch" != "ppc64le" ]; then
+if [ "$arch" != "ppc64le" ] && [ "$arch" != "riscv64" ]; then
 	go install honnef.co/go/tools/cmd/staticcheck@2025.1.1 || true
+	go install github.com/google/capslock/cmd/capslock@latest
 fi
-
-go install github.com/google/capslock/cmd/capslock@latest
 
 uname -a
 echo "$PATH"
