@@ -1,6 +1,7 @@
 package debugger
 
 import (
+	"context"
 	"debug/dwarf"
 	"debug/elf"
 	"debug/macho"
@@ -21,6 +22,8 @@ import (
 	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
+	"go.starlark.net/starlark"
+
 	"github.com/go-delve/delve/pkg/dwarf/op"
 	"github.com/go-delve/delve/pkg/gobuild"
 	"github.com/go-delve/delve/pkg/goversion"
@@ -52,6 +55,8 @@ var (
 	// ErrNotImplementedWithMultitarget is returned for operations that are not implemented with multiple targets
 	ErrNotImplementedWithMultitarget = errors.New("not implemented for multiple targets")
 )
+
+const maximumPrettyPrintDuration = 100 * time.Millisecond
 
 // Debugger service.
 //
@@ -619,16 +624,18 @@ func (d *Debugger) state(retLoadCfg *proc.LoadConfig, withBreakpointInfo bool) (
 		Exited:            exited,
 	}
 
+	pp := d.customPrettyPrintInternal(false)
+
 	for _, thread := range d.target.ThreadList() {
 		th := api.ConvertThread(thread, d.ConvertThreadBreakpoint(thread))
 
 		th.CallReturn = thread.Common().CallReturn
 		if retLoadCfg != nil {
-			th.ReturnValues = api.ConvertVars(thread.Common().ReturnValues(*retLoadCfg))
+			th.ReturnValues = api.ConvertVars(thread.Common().ReturnValues(*retLoadCfg), pp)
 		}
 
 		if withBreakpointInfo {
-			err := d.collectBreakpointInformation(th, thread)
+			err := d.collectBreakpointInformation(th, thread, pp)
 			if err != nil {
 				return nil, err
 			}
@@ -1292,7 +1299,7 @@ func (d *Debugger) Command(command *api.DebuggerCommand, resumeNotify chan struc
 	return state, err
 }
 
-func (d *Debugger) collectBreakpointInformation(apiThread *api.Thread, thread proc.Thread) error {
+func (d *Debugger) collectBreakpointInformation(apiThread *api.Thread, thread proc.Thread, pp api.CustomPrettyPrintFunc) error {
 	if apiThread.Breakpoint == nil || apiThread.BreakpointInfo != nil {
 		return nil
 	}
@@ -1323,7 +1330,7 @@ func (d *Debugger) collectBreakpointInformation(apiThread *api.Thread, thread pr
 		if err != nil {
 			return err
 		}
-		bpi.Stacktrace, err = d.convertStacktrace(rawlocs, nil)
+		bpi.Stacktrace, err = d.convertStacktrace(rawlocs, nil, pp)
 		if err != nil {
 			return err
 		}
@@ -1353,17 +1360,17 @@ func (d *Debugger) collectBreakpointInformation(apiThread *api.Thread, thread pr
 		if err != nil {
 			bpi.Variables[i] = api.Variable{Name: bp.Variables[i], Unreadable: fmt.Sprintf("eval error: %v", err)}
 		} else {
-			bpi.Variables[i] = *api.ConvertVar(v)
+			bpi.Variables[i] = *api.ConvertVar(v, pp)
 		}
 	}
 	if bp.LoadArgs != nil {
 		if vars, err := s.FunctionArguments(*api.LoadConfigToProc(bp.LoadArgs)); err == nil {
-			bpi.Arguments = api.ConvertVars(vars)
+			bpi.Arguments = api.ConvertVars(vars, pp)
 		}
 	}
 	if bp.LoadLocals != nil {
 		if locals, err := s.LocalVariables(*api.LoadConfigToProc(bp.LoadLocals)); err == nil {
-			bpi.Locals = api.ConvertVars(locals)
+			bpi.Locals = api.ConvertVars(locals, pp)
 		}
 	}
 	return nil
@@ -1981,6 +1988,8 @@ func (d *Debugger) Ancestors(goroutineID int64, numAncestors, depth int) ([]api.
 		return nil, err
 	}
 
+	pp := d.customPrettyPrintInternal(false)
+
 	r := make([]api.Ancestor, len(ancestors))
 	for i := range ancestors {
 		r[i].ID = ancestors[i].ID
@@ -1993,7 +2002,7 @@ func (d *Debugger) Ancestors(goroutineID int64, numAncestors, depth int) ([]api.
 			r[i].Unreadable = fmt.Sprintf("could not read ancestor stacktrace: %v", err)
 			continue
 		}
-		r[i].Stack, err = d.convertStacktrace(frames, nil)
+		r[i].Stack, err = d.convertStacktrace(frames, nil, pp)
 		if err != nil {
 			r[i].Unreadable = fmt.Sprintf("could not read ancestor stacktrace: %v", err)
 		}
@@ -2007,10 +2016,10 @@ func (d *Debugger) Ancestors(goroutineID int64, numAncestors, depth int) ([]api.
 func (d *Debugger) ConvertStacktrace(rawlocs []proc.Stackframe, cfg *proc.LoadConfig) ([]api.Stackframe, error) {
 	d.targetMutex.Lock()
 	defer d.targetMutex.Unlock()
-	return d.convertStacktrace(rawlocs, cfg)
+	return d.convertStacktrace(rawlocs, cfg, d.customPrettyPrintInternal(false))
 }
 
-func (d *Debugger) convertStacktrace(rawlocs []proc.Stackframe, cfg *proc.LoadConfig) ([]api.Stackframe, error) {
+func (d *Debugger) convertStacktrace(rawlocs []proc.Stackframe, cfg *proc.LoadConfig, pp api.CustomPrettyPrintFunc) ([]api.Stackframe, error) {
 	locations := make([]api.Stackframe, 0, len(rawlocs))
 	for i := range rawlocs {
 		frame := api.Stackframe{
@@ -2037,8 +2046,8 @@ func (d *Debugger) convertStacktrace(rawlocs []proc.Stackframe, cfg *proc.LoadCo
 				return nil, err
 			}
 
-			frame.Locals = api.ConvertVars(locals)
-			frame.Arguments = api.ConvertVars(arguments)
+			frame.Locals = api.ConvertVars(locals, pp)
+			frame.Arguments = api.ConvertVars(arguments, pp)
 		}
 		locations = append(locations, frame)
 	}
@@ -2455,10 +2464,10 @@ func (d *Debugger) GetBufferedTracepoints(loadCfg *api.LoadConfig) []api.Tracepo
 		results[i].GoroutineID = trace.GoroutineID
 
 		for _, p := range trace.InputParams {
-			results[i].InputParams = append(results[i].InputParams, *api.ConvertVar(p))
+			results[i].InputParams = append(results[i].InputParams, *api.ConvertVar(p, nil))
 		}
 		for _, p := range trace.ReturnParams {
-			results[i].ReturnParams = append(results[i].ReturnParams, *api.ConvertVar(p))
+			results[i].ReturnParams = append(results[i].ReturnParams, *api.ConvertVar(p, nil))
 		}
 	}
 	return results
@@ -2616,7 +2625,7 @@ func (d *Debugger) maybePrintUnattendedStopWarning(stopReason proc.StopReason, c
 		return
 	}
 
-	apiFrames, err := d.convertStacktrace(frames, nil)
+	apiFrames, err := d.convertStacktrace(frames, nil, d.customPrettyPrintInternal(false))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "err", err)
 		return
@@ -2676,6 +2685,55 @@ func (d *Debugger) DownloadLibraryDebugInfo(n int) error {
 	d.targetMutex.Lock()
 	defer d.targetMutex.Unlock()
 	return d.target.Selected.BinInfo().LoadImageBinaryInfoAgain(n)
+}
+
+func (d *Debugger) CustomPrettyPrint() api.CustomPrettyPrintFunc {
+	return d.customPrettyPrintInternal(true)
+}
+
+func (d *Debugger) customPrettyPrintInternal(doLock bool) api.CustomPrettyPrintFunc {
+	var thread *starlarkThread
+	return func(v *api.Variable) (string, bool) {
+		if doLock {
+			d.targetMutex.Lock()
+			defer d.targetMutex.Unlock()
+		}
+		p := d.StarlarkEnv.CustomPrettyPrinters[v.Type]
+		if p == nil {
+			return "", false
+		}
+		if thread == nil {
+			to, _ := context.WithTimeout(context.Background(), maximumPrettyPrintDuration)
+			thread = d.StarlarkEnv.newThread(to, nil)
+		}
+		select {
+		case <-thread.ctx.Done():
+			return "", false
+		default:
+			// continue
+		}
+
+		starlarkVar, err := d.StarlarkEnv.variableValueToStarlarkValue(v, true)
+		if err != nil {
+			logflags.DebuggerLogger().Errorf("could not convert variable to starlark during custom prettyprinting: %v", err)
+			return "", false
+		}
+		d.StarlarkEnv.isLocked = true
+		defer func() {
+			d.StarlarkEnv.isLocked = false
+		}()
+		out, err := starlark.Call(thread.thread, p, starlark.Tuple{starlarkVar}, nil)
+		if err != nil {
+			return fmt.Sprintf("<pretty print error: %v>", err), true
+		}
+
+		switch out := out.(type) {
+		case starlark.String:
+			return string(out), true
+		default:
+			return out.String(), true
+		}
+	}
 }
 
 func guessSubstitutePath(args *api.GuessSubstitutePathIn, bins [][]proc.Function, fileForFunc func(int, *proc.Function) string) map[string]string {

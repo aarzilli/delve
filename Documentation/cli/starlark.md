@@ -161,6 +161,19 @@ main.astruct {A: 1, B: 2}
 
 For more examples see the [linked list example](#Print-all-elements-of-a-linked-list) below.
 
+# Pretty Printing
+
+Using starlark scripts the user can configure how variables are pretty print. For example:
+
+```
+def my_print_function(v):
+	return "this variable starts with " + str(arg[0]) + " and ends with " + str(arg[-1])
+
+PrettyPrint["[]uint8"] = my_print_function
+```
+
+changes how uint8 slices are printed by Delve, instead of using the default built-in pretty printer the function `my_print_function` is called.
+
 # Examples
 
 ## Listing goroutines and making custom commands

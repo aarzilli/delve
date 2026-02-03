@@ -3075,7 +3075,7 @@ func (s *Session) getTypeIfSupported(v *proc.Variable) string {
 	switch v.Kind {
 	case reflect.Interface:
 		if len(v.Children) > 0 {
-			vapi := api.ConvertVar(v)
+			vapi := api.ConvertVar(v, nil)
 			if vapi.Children[0].Kind != reflect.Invalid {
 				return fmt.Sprintf("%s(%s)", vapi.Type, vapi.Children[0].Type)
 			}
@@ -3130,7 +3130,8 @@ func (s *Session) convertVariableWithOpts(v *proc.Variable, qualifiedNameOrExpr 
 		}
 		return s.variableHandles.create(&fullyQualifiedVariable{v, qualifiedNameOrExpr, false /*not a scope*/, 0, goid, frame})
 	}
-	value = formatVar(v, s.args.ShowRawStrings)
+	pp := s.debugger.CustomPrettyPrint()
+	value = formatVar(v, s.args.ShowRawStrings, pp)
 	if v.Unreadable != nil {
 		return value, 0
 	}
@@ -3144,7 +3145,7 @@ func (s *Session) convertVariableWithOpts(v *proc.Variable, qualifiedNameOrExpr 
 		// TODO(polina): Get *proc.Variable object from debugger instead. Export a function to set v.loaded to false
 		// and call v.loadValue gain with a different load config. It's more efficient, and it's guaranteed to keep
 		// working with generics.
-		value = formatVar(v, s.args.ShowRawStrings)
+		value = formatVar(v, s.args.ShowRawStrings, pp)
 		typeName := api.PrettyTypeName(v.DwarfType)
 		loadExpr := fmt.Sprintf("*(*%q)(%#x)", typeName, v.Addr)
 		s.config.log.Debugf("loading %s (type %s) with %s", qualifiedNameOrExpr, typeName, loadExpr)
@@ -3158,14 +3159,14 @@ func (s *Session) convertVariableWithOpts(v *proc.Variable, qualifiedNameOrExpr 
 		} else {
 			v.Children = vLoaded.Children
 			v.Value = vLoaded.Value
-			value = formatVar(v, s.args.ShowRawStrings)
+			value = formatVar(v, s.args.ShowRawStrings, pp)
 		}
 		return value
 	}
 
 	switch v.Kind {
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-		n, _ := strconv.ParseUint(api.ExtractIntValue(api.ConvertVar(v).Value), 10, 64)
+		n, _ := strconv.ParseUint(api.ExtractIntValue(api.ConvertVar(v, pp).Value), 10, 64)
 		value = fmt.Sprintf("%s = %#x", value, n)
 	case reflect.UnsafePointer:
 		// Skip child reference
@@ -3190,7 +3191,7 @@ func (s *Session) convertVariableWithOpts(v *proc.Variable, qualifiedNameOrExpr 
 					} else {
 						cLoaded.Name = v.Children[0].Name // otherwise, this will be the pointer expression
 						v.Children = []proc.Variable{*cLoaded}
-						value = formatVar(v, s.args.ShowRawStrings)
+						value = formatVar(v, s.args.ShowRawStrings, pp)
 					}
 				} else {
 					value = reloadVariable(v, qualifiedNameOrExpr)
@@ -4806,10 +4807,10 @@ func (s *syncflag) raise() {
 	s.cond.Broadcast()
 }
 
-func formatVar(v *proc.Variable, rawString bool) string {
+func formatVar(v *proc.Variable, rawString bool, pp api.CustomPrettyPrintFunc) string {
 	flags := api.PrettyShortenType
 	if rawString {
 		flags |= api.PrettyRawString
 	}
-	return api.ConvertVar(v).StringWithOptions("", "", flags)
+	return api.ConvertVar(v, pp).StringWithOptions("", "", flags)
 }

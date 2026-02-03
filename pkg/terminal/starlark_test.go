@@ -306,3 +306,16 @@ func TestStarlarkChainBreakpointsExample(t *testing.T) {
 		assertPhysCount(0, 0, 1)
 	})
 }
+
+func TestStarlarkPrettyPrinting(t *testing.T) {
+	withTestTerminal("testvariables2", t, func(term *FakeTerminal) {
+		term.MustExec("source " + findStarFile("setup_starlark_pretty_printing_test"))
+		term.MustExec("continue")
+		out := term.MustExec("print longbyteslice")
+		t.Logf("output %q\n", out)
+		const expected = "bytes start with 118 and end with 57\n"
+		if out != expected {
+			t.Errorf("expected %q got %q", expected, out)
+		}
+	})
+}

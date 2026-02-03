@@ -489,7 +489,7 @@ func (s *RPCServer) ListPackageVars(arg ListPackageVarsIn, out *ListPackageVarsO
 	if err != nil {
 		return err
 	}
-	out.Variables = api.ConvertVars(vars)
+	out.Variables = api.ConvertVars(vars, s.debugger.CustomPrettyPrint())
 	return nil
 }
 
@@ -549,7 +549,7 @@ func (s *RPCServer) ListLocalVars(arg ListLocalVarsIn, out *ListLocalVarsOut) er
 	if err != nil {
 		return err
 	}
-	out.Variables = api.ConvertVars(vars)
+	out.Variables = api.ConvertVars(vars, s.debugger.CustomPrettyPrint())
 	return nil
 }
 
@@ -568,7 +568,7 @@ func (s *RPCServer) ListFunctionArgs(arg ListFunctionArgsIn, out *ListFunctionAr
 	if err != nil {
 		return err
 	}
-	out.Args = api.ConvertVars(vars)
+	out.Args = api.ConvertVars(vars, s.debugger.CustomPrettyPrint())
 	return nil
 }
 
@@ -601,7 +601,7 @@ func (s *RPCServer) Eval(arg EvalIn, out *EvalOut) error {
 	if err != nil {
 		return err
 	}
-	out.Variable = api.ConvertVar(v)
+	out.Variable = api.ConvertVar(v, s.debugger.CustomPrettyPrint())
 	return nil
 }
 

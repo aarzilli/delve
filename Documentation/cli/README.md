@@ -597,6 +597,8 @@ See [Documentation/cli/expr.md](//github.com/go-delve/delve/tree/master/Document
 
 The optional format argument is a format specifier, like the ones used by the fmt package. For example "print %x v" will print v as an hexadecimal number.
 
+The way variables are formatted can be configured using starlark scripts, see [Documentation/cli/starlark.md#Pretty-Printing](//github.com/go-delve/delve/tree/master/Documentation/cli/starlark.md#Pretty-Printing).
+
 Aliases: p
 
 ## rebuild

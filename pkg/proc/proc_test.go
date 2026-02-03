@@ -4828,8 +4828,8 @@ func TestDump(t *testing.T) {
 		}
 
 		for i := range vars {
-			varstr := vars[i].Name + "=" + api.ConvertVar(vars[i]).SinglelineString()
-			cvarstr := cvars[i].Name + "=" + api.ConvertVar(cvars[i]).SinglelineString()
+			varstr := vars[i].Name + "=" + api.ConvertVar(vars[i], nil).SinglelineString()
+			cvarstr := cvars[i].Name + "=" + api.ConvertVar(cvars[i], nil).SinglelineString()
 			if strings.Contains(varstr, "(unreadable") {
 				// errors reading from unmapped memory differ between live process and core
 				continue
@@ -5906,7 +5906,7 @@ func TestStepIntoGoroutine(t *testing.T) {
 		{contContinue, 23},
 		{contStep, 7},
 		{contNothing, func(p *proc.Target) {
-			vari := api.ConvertVar(evalVariable(p, t, "i"))
+			vari := api.ConvertVar(evalVariable(p, t, "i"), nil)
 			varis := vari.SinglelineString()
 			t.Logf("i = %s", varis)
 			if varis != "0" {

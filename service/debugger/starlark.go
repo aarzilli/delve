@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"sort"
 	"strings"
+	"time"
 	"unsafe"
 
 	startime "go.starlark.net/lib/time"
@@ -16,6 +17,7 @@ import (
 	"go.starlark.net/syntax"
 
 	"github.com/go-delve/delve/pkg/logflags"
+	"github.com/go-delve/delve/pkg/proc"
 	"github.com/go-delve/delve/service/api"
 )
 
@@ -33,6 +35,7 @@ const (
 	curScopeBuiltinName          = "cur_scope"
 	defaultLoadConfigBuiltinName = "default_load_config"
 	targetObjectName             = "tgt"
+	customPrettyPrintObjectName  = "PrettyPrint"
 	helpBuiltinName              = "help"
 )
 
@@ -52,7 +55,7 @@ func (d *Debugger) EvalStarlark(threadID uint64, s any, scope api.EvalScope, loa
 
 	thread := d.StarlarkEnv.threads[threadID]
 	if thread == nil {
-		thread = d.StarlarkEnv.newThread(s)
+		thread = d.StarlarkEnv.newThread(context.Background(), s)
 	}
 	d.StarlarkEnv.scope = scope
 	d.StarlarkEnv.loadConfig = loadConfig
@@ -105,9 +108,12 @@ type StarlarkEnv struct {
 	builtinDoc      map[string]string
 	threads         map[uint64]*starlarkThread
 	commands        map[string]starlarkCommand
+	isLocked        bool
 
 	scope      api.EvalScope
 	loadConfig api.LoadConfig
+
+	CustomPrettyPrinters map[string]*starlark.Function
 }
 
 type starlarkCommand struct {
@@ -147,18 +153,20 @@ func (thread *starlarkThread) handle() uint64 {
 // StarlarkEnvNew creates a new starlark binding environment.
 func starlarkEnvNew(d *Debugger) *StarlarkEnv {
 	env := &StarlarkEnv{
-		d:          d,
-		env:        make(starlark.StringDict),
-		defaultEnv: make(starlark.StringDict),
-		commands:   make(map[string]starlarkCommand),
-		threads:    make(map[uint64]*starlarkThread),
-		builtinDoc: make(map[string]string),
+		d:                    d,
+		env:                  make(starlark.StringDict),
+		defaultEnv:           make(starlark.StringDict),
+		commands:             make(map[string]starlarkCommand),
+		threads:              make(map[uint64]*starlarkThread),
+		builtinDoc:           make(map[string]string),
+		CustomPrettyPrinters: make(map[string]*starlark.Function),
 	}
 
 	// Make the "time" module available to Starlark scripts.
 	starlark.Universe["time"] = startime.Module
 
 	env.defaultEnv[targetObjectName] = &starlarkTargetObject{env: env}
+	env.defaultEnv[customPrettyPrintObjectName] = &starlarkCustomPrettyPrintObject{env: env}
 
 	builtindoc := func(name, args, descr string) {
 		env.builtinDoc[name] = name + args + "\n\n" + name + " " + descr
@@ -254,6 +262,7 @@ func starlarkEnvNew(d *Debugger) *StarlarkEnv {
 				fmt.Fprintf(out, "\t%s\n", bin)
 			}
 			fmt.Fprintf(out, "\n\nUse tgt.varname to access the varname variable in the target process (it is equivalent to 'eval(None, \"varname\").Variable.Value').\n")
+			fmt.Fprintf(out, "\nUse the PrettyPrint variable to configure pretty printing.\n")
 		case 1:
 			switch x := args[0].(type) {
 			case *starlark.Builtin:
@@ -311,7 +320,7 @@ func (env *StarlarkEnv) reset() {
 	maps.Copy(env.env, env.defaultEnv)
 }
 
-func (env *StarlarkEnv) newThread(s any) *starlarkThread {
+func (env *StarlarkEnv) newThread(ctx context.Context, s any) *starlarkThread {
 	thread := &starlark.Thread{
 		Print: func(thread *starlark.Thread, msg string) {
 			clientRoundTrip(thread, "print", api.StarlarkPrint, msg, nil)
@@ -322,7 +331,7 @@ func (env *StarlarkEnv) newThread(s any) *starlarkThread {
 		resp:   make(chan *evalStarlarkOut),
 		cont:   make(chan *starlarkCont),
 	}
-	sthread.ctx, sthread.cancelfn = context.WithCancel(context.Background())
+	sthread.ctx, sthread.cancelfn = context.WithCancel(ctx)
 	thread.SetLocal(dlvThreadLocalThreadName, sthread)
 	thread.SetLocal(DlvThreadLocalRPCServer, s)
 	env.threads[sthread.handle()] = sthread
@@ -501,6 +510,22 @@ func (env *StarlarkEnv) createCommand(thread *starlarkThread, name string, val s
 	clientRoundTrip(thread.thread, "registering commands", api.StarlarkRegisterCommand, "", []string{name, helpMsg})
 	env.commands[name] = starlarkCommand{stringArgs, fnval}
 	return nil
+}
+
+func (env *StarlarkEnv) lock() func() {
+	if env.isLocked {
+		return func() {}
+	}
+	_, unlock := env.d.LockTargetGroup()
+	return unlock
+}
+
+func (env *StarlarkEnv) eval(scope api.EvalScope, expr string, timeout time.Duration, cfg proc.LoadConfig) (*proc.Variable, error) {
+	s, err := proc.ConvertEvalScope(env.d.target.Selected, scope.GoroutineID, scope.Frame, scope.DeferredCall)
+	if err != nil {
+		return nil, err
+	}
+	return s.EvalExpression(expr, timeout, cfg)
 }
 
 func asStarlarkThread(thread *starlark.Thread) *starlarkThread {

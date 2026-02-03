@@ -106,6 +106,11 @@ func (v *Variable) writeTo(buf io.Writer, flags PrettyFlags, indent, fmtstr stri
 		return
 	}
 
+	if v.Flags&VariableCustomPrettyPrint != 0 {
+		fmt.Fprintf(buf, "%s", v.Value)
+		return
+	}
+
 	switch v.Kind {
 	case reflect.Slice:
 		v.writeSliceTo(buf, flags, indent, fmtstr)
