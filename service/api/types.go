@@ -310,6 +310,9 @@ const (
 
 	// VariableCPURegister means this variable is a CPU register.
 	VariableCPURegister
+
+	// VariableCustomPrettyPrint indicates that the variable has been pretty-printed with a custom function
+	VariableCustomPrettyPrint
 )
 
 // Variable describes a variable.

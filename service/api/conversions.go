@@ -157,8 +157,10 @@ func convertFloatValue(v *proc.Variable, sz int) string {
 	return strconv.FormatFloat(f, 'f', -1, sz)
 }
 
+type CustomPrettyPrintFunc func(*Variable) (string, bool)
+
 // ConvertVar converts from proc.Variable to api.Variable.
-func ConvertVar(v *proc.Variable) *Variable {
+func ConvertVar(v *proc.Variable, customPrettyPrint CustomPrettyPrintFunc) *Variable {
 	r := Variable{
 		Addr:     v.Addr,
 		OnlyAddr: v.OnlyAddr,
@@ -229,7 +231,14 @@ func ConvertVar(v *proc.Variable) *Variable {
 		r.Children = make([]Variable, len(v.Children))
 
 		for i := range v.Children {
-			r.Children[i] = *ConvertVar(&v.Children[i])
+			r.Children[i] = *ConvertVar(&v.Children[i], customPrettyPrint)
+		}
+	}
+
+	if customPrettyPrint != nil {
+		if cppv, ok := customPrettyPrint(&r); ok {
+			r.Value = cppv
+			r.Flags |= VariableCustomPrettyPrint
 		}
 	}
 
@@ -257,13 +266,13 @@ func VariableValueAsString(v *proc.Variable) string {
 }
 
 // ConvertVars converts from []*proc.Variable to []api.Variable.
-func ConvertVars(pv []*proc.Variable) []Variable {
+func ConvertVars(pv []*proc.Variable, customPrettyPrint CustomPrettyPrintFunc) []Variable {
 	if pv == nil {
 		return nil
 	}
 	vars := make([]Variable, 0, len(pv))
 	for _, v := range pv {
-		vars = append(vars, *ConvertVar(v))
+		vars = append(vars, *ConvertVar(v, customPrettyPrint))
 	}
 	return vars
 }

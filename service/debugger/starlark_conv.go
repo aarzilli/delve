@@ -3,6 +3,8 @@ package debugger
 import (
 	"errors"
 	"fmt"
+	"iter"
+	"maps"
 	"math"
 	"reflect"
 	"strconv"
@@ -294,11 +296,18 @@ func (env *StarlarkEnv) variableValueToStarlarkValue(v *api.Variable, top bool) 
 }
 
 func (env *StarlarkEnv) autoLoad(expr string) *api.Variable {
-	v, err := env.d.EvalVariableInScope(-1, 0, 0, expr, 0, autoLoadConfig)
+	unlock := env.lock()
+	v, err := env.eval(api.EvalScope{GoroutineID: -1}, expr, 0, autoLoadConfig)
+	unlock()
 	if err != nil {
+		unlock()
 		return &api.Variable{Unreadable: err.Error()}
 	}
-	return api.ConvertVar(v)
+	var customPrettyPrint api.CustomPrettyPrintFunc
+	if !env.isLocked {
+		customPrettyPrint = env.d.CustomPrettyPrint()
+	}
+	return api.ConvertVar(v, customPrettyPrint) // TODO: what do I pass here?
 }
 
 func (v structAsStarlarkValue) AttrNames() []string {
@@ -722,13 +731,6 @@ type starlarkTargetObject struct {
 	env *StarlarkEnv
 }
 
-func (*starlarkTargetObject) Freeze() {
-}
-
-func (*starlarkTargetObject) Hash() (uint32, error) {
-	return 0, errors.New("not hashable")
-}
-
 func (*starlarkTargetObject) String() string {
 	return "<target variables>"
 }
@@ -746,11 +748,93 @@ func (tgt *starlarkTargetObject) AttrNames() []string {
 }
 
 func (tgt *starlarkTargetObject) Attr(name string) (starlark.Value, error) {
-	v, err := tgt.env.d.EvalVariableInScope(tgt.env.scope.GoroutineID, tgt.env.scope.Frame, tgt.env.scope.DeferredCall, name, 0, *api.LoadConfigToProc(&tgt.env.loadConfig))
+	unlock := tgt.env.lock()
+	v, err := tgt.env.eval(tgt.env.scope, name, 0, *api.LoadConfigToProc(&tgt.env.loadConfig))
+	unlock()
 	if err != nil {
 		return starlark.None, fmt.Errorf("could not find variable %q: %v", name, err)
 	}
-	return tgt.env.variableValueToStarlarkValue(api.ConvertVar(v), true)
+	var customPrettyPrint api.CustomPrettyPrintFunc
+	if !tgt.env.isLocked {
+		customPrettyPrint = tgt.env.d.CustomPrettyPrint()
+	}
+	return tgt.env.variableValueToStarlarkValue(api.ConvertVar(v, customPrettyPrint), true)
+}
+
+var _ starlark.IterableMapping = &starlarkCustomPrettyPrintObject{}
+var _ starlark.HasSetKey = &starlarkCustomPrettyPrintObject{}
+
+type starlarkCustomPrettyPrintObject struct {
+	starlarkUnhashable
+	env *StarlarkEnv
+}
+
+func (*starlarkCustomPrettyPrintObject) String() string {
+	return "<custom pretty printers>"
+}
+
+func (*starlarkCustomPrettyPrintObject) Truth() starlark.Bool {
+	return true
+}
+
+func (*starlarkCustomPrettyPrintObject) Type() string {
+	return "<custom pretty printers>"
+}
+
+func (pp *starlarkCustomPrettyPrintObject) Get(key starlark.Value) (starlark.Value, bool, error) {
+	skey, ok := key.(starlark.String)
+	if !ok {
+		return starlark.None, false, errors.New("key is not a string")
+	}
+	v, ok := pp.env.CustomPrettyPrinters[string(skey)]
+	return v, ok, nil
+}
+
+func (pp *starlarkCustomPrettyPrintObject) Items() []starlark.Tuple {
+	r := make([]starlark.Tuple, 0, len(pp.env.CustomPrettyPrinters))
+	for k, v := range pp.env.CustomPrettyPrinters {
+		r = append(r, starlark.Tuple{starlark.String(k), v})
+	}
+	return r
+}
+
+func (pp *starlarkCustomPrettyPrintObject) Iterate() starlark.Iterator {
+	next, stop := iter.Pull2(maps.All(pp.env.CustomPrettyPrinters))
+	return starlarkCustomPrettyPrintObjectIterator{next, stop}
+}
+
+func (pp *starlarkCustomPrettyPrintObject) SetKey(key starlark.Value, value starlark.Value) error {
+	skey, ok := key.(starlark.String)
+	if !ok {
+		return errors.New("key is not a string")
+	}
+	fnval, ok := value.(*starlark.Function)
+	if !ok {
+		return errors.New("value is not a function")
+	}
+	if fnval.NumParams() != 1 {
+		return errors.New("wrong number of arguments for pretty print function")
+	}
+	pp.env.CustomPrettyPrinters[string(skey)] = fnval
+	return nil
+}
+
+type starlarkCustomPrettyPrintObjectIterator struct {
+	next func() (string, *starlark.Function, bool)
+	stop func()
+}
+
+func (it starlarkCustomPrettyPrintObjectIterator) Next(p *starlark.Value) bool {
+	k, v, ok := it.next()
+	if !ok {
+		return false
+	}
+	*p = starlark.Tuple{starlark.String(k), v}
+	return true
+}
+
+func (it starlarkCustomPrettyPrintObjectIterator) Done() {
+	it.stop()
 }
 
 type starlarkUnhashable struct {

@@ -89,6 +89,8 @@ const (
 	VariableCPtr
 	// VariableCPURegister means this variable is a CPU register.
 	VariableCPURegister
+	// VariableCustomPrettyPrint indicates that the variable has been pretty-printed with a custom function
+	VariableCustomPrettyPrint
 	// variableTrustLen means that when this variable is loaded its length
 	// should be trusted and used instead of MaxArrayValues
 	variableTrustLen

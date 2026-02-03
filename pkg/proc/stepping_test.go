@@ -656,7 +656,7 @@ func (h *testseq2Helpers) assertEval(t *testing.T, exprvals ...string) seqTest {
 				if err != nil {
 					t.Errorf("Could not evaluate %q: %v", expr, err)
 				} else {
-					out := api.ConvertVar(v).SinglelineString()
+					out := api.ConvertVar(v, nil).SinglelineString()
 					if out != tgt {
 						t.Errorf("Wrong value for %q, got %q expected %q", expr, out, tgt)
 					}

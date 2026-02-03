@@ -362,7 +362,9 @@ Speciftying -save <filename> saves all breakpoints to the specified file in a fo
 
 See Documentation/cli/expr.md for a description of supported expressions.
 
-The optional format argument is a format specifier, like the ones used by the fmt package. For example "print %x v" will print v as an hexadecimal number.`},
+The optional format argument is a format specifier, like the ones used by the fmt package. For example "print %x v" will print v as an hexadecimal number.
+
+The way variables are formatted can be configured using starlark scripts, see Documentation/cli/starlark.md#Pretty-Printing.`},
 		{aliases: []string{"whatis"}, group: dataCmds, cmdFn: whatisCommand, helpMsg: `Prints type of an expression or a type.
 
 	whatis <expression>
