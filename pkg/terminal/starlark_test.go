@@ -318,3 +318,33 @@ func TestStarlarkPrettyPrinting(t *testing.T) {
 		}
 	})
 }
+
+func TestStarlarkSpecialObjects(t *testing.T) {
+	withTestTerminal("testvariables2", t, func(term *FakeTerminal) {
+		term.MustExec("continue")
+		for _, tc := range []struct{ expr, tgt string }{
+			{"gs", "<target goroutines>"},
+			{"gs[1]", "api.Goroutine{ID:1, CurrentLoc:…"},
+			{"gs[-1]", "api.Goroutine{ID:1, CurrentLoc:…"},
+			{"set([x.CurrentLoc.Function.Name_ for x in gs])", `set(["main.main", "runtime.gopark"])`},
+			{"gs[1].ID", "1"},
+			{"gs[1].stack", "<target stack>"},
+			{"gs[1].stack[0]", "api.Stackframe{Location:…"},
+			{"[ x.Location.Function.Name_ for x in gs[1].stack ]", `["main.main", "runtime.main", "runtime.goexit"]`},
+			{"gs[1].stack[0].Location.Function.Name_", "\"main.main\""},
+			{"gs[1].stack[0].tgt.f1", "3.0"},
+		} {
+			out := strings.TrimSpace(term.MustExecStarlark(tc.expr))
+			t.Logf("%q -> %q", tc.expr, out)
+			if strings.HasSuffix(tc.tgt, "…") {
+				if !strings.HasPrefix(out, tc.tgt[:len(tc.tgt)-len("…")]) {
+					t.Errorf("for %q\nexpected %q\ngot %q\n", tc.expr, tc.tgt, out)
+				}
+			} else {
+				if out != tc.tgt {
+					t.Errorf("for %q\nexpected %q\ngot %q", tc.expr, tc.tgt, out)
+				}
+			}
+		}
+	})
+}

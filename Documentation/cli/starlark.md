@@ -79,6 +79,18 @@ default_load_config() | Returns the current default load configuration
 
 In addition to these built-ins, the [time](https://pkg.go.dev/go.starlark.net/lib/time#pkg-variables) library from the starlark-go project is also available to scripts.
 
+## Special predeclared variables
+
+The following predeclared variables are availabe to starlark programs.
+
+Variable        	| Use
+------------------------|---------
+tgt.X			| Accesses variable X of the currently selected frame
+gs[N]			| Goroutine N
+gs[N].stack[M]		| Frame M of goroutine N
+gs[N].stack[M].tgt.X	| Variable X as evaluated in frame M of goroutine N
+
+
 ## Should I use raw_command or dlv_command?
 
 There are two ways to resume the execution of the target program:
