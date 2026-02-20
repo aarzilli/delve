@@ -308,8 +308,7 @@ func TestStarlarkChainBreakpointsExample(t *testing.T) {
 }
 
 func TestStarlarkPrettyPrinting(t *testing.T) {
-	withTestTerminal("testvariables2", t, func(term *FakeTerminal) {
-		term.MustExec("source " + findStarFile("setup_starlark_pretty_printing_test"))
+	withTestTerminalBuildFlags("testvariables2", t, 0, findStarFile("setup_starlark_pretty_printing_test"), func(term *FakeTerminal) {
 		term.MustExec("continue")
 		out := term.MustExec("print longbyteslice")
 		t.Logf("output %q\n", out)

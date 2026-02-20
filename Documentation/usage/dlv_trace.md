@@ -44,6 +44,7 @@ dlv trace [package] regexp [flags]
       --log-dest string        Writes logs to the specified file or file descriptor (see 'dlv help log').
       --log-output string      Comma separated list of components that should produce debug output (see 'dlv help log')
   -r, --redirect stringArray   Specifies redirect rules for target process (see 'dlv help redirect')
+      --starlark-init string   Starlark init file, executed by the server. Defaults to init.star in Delve's configuration directory.
       --wd string              Working directory for running the program.
 ```
 

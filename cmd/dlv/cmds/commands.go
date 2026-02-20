@@ -53,6 +53,8 @@ var (
 	addr string
 	// initFile is the path to initialization file.
 	initFile string
+	// starlarkInitFile is the path to the starlark initialization file.
+	starlarkInitFile string
 	// buildFlags is the flags passed during compiler invocation.
 	buildFlags string
 	// workingDir is the working directory for running the program.
@@ -155,6 +157,8 @@ func New(docCall bool) *cobra.Command {
 	must(rootCommand.RegisterFlagCompletionFunc("api-version", cobra.FixedCompletions([]string{"1", "2"}, cobra.ShellCompDirectiveNoFileComp)))
 	rootCommand.PersistentFlags().StringVar(&initFile, "init", "", "Init file, executed by the terminal client.")
 	must(rootCommand.MarkPersistentFlagFilename("init"))
+	rootCommand.PersistentFlags().StringVar(&starlarkInitFile, "starlark-init", "", "Starlark init file, executed by the server. Defaults to init.star in Delve's configuration directory.")
+	must(rootCommand.MarkPersistentFlagFilename("starlark-init"))
 	rootCommand.PersistentFlags().StringVar(&buildFlags, "build-flags", buildFlagsDefault, "Build flags, to be passed to the compiler. For example: --build-flags=\"-tags=integration -mod=vendor -cover -v\"")
 	must(rootCommand.RegisterFlagCompletionFunc("build-flags", cobra.NoFileCompletions))
 	rootCommand.PersistentFlags().StringVar(&workingDir, "wd", "", "Working directory for running the program.")
@@ -594,6 +598,7 @@ func dapCmd(cmd *cobra.Command, args []string) {
 				DebugInfoDirectories: conf.DebugInfoDirectories,
 				CheckGoVersion:       checkGoVersion,
 				DisableASLR:          disableASLR,
+				StarlarkInitFile:     starlarkInitFileOrDefault(),
 			},
 			CheckLocalConnUser: checkLocalConnUser,
 		}
@@ -752,6 +757,7 @@ func traceCmd(cmd *cobra.Command, args []string, conf *config.Config) int {
 				Backend:              backend,
 				CheckGoVersion:       checkGoVersion,
 				DebugInfoDirectories: conf.DebugInfoDirectories,
+				StarlarkInitFile:     starlarkInitFileOrDefault(),
 			},
 		})
 		if err := server.Run(); err != nil {
@@ -1175,6 +1181,7 @@ func execute(attachPid int, processArgs []string, conf *config.Config, coreFile 
 				AttachWaitFor:         attachWaitFor,
 				AttachWaitForInterval: attachWaitForInterval,
 				AttachWaitForDuration: attachWaitForDuration,
+				StarlarkInitFile:      starlarkInitFileOrDefault(),
 			},
 		})
 	default:
@@ -1278,6 +1285,17 @@ func netDial(addr string) net.Conn {
 		logflags.RPCLogger().Errorf("error dialing %s: %v", addr, err)
 	}
 	return conn
+}
+
+func starlarkInitFileOrDefault() string {
+	if starlarkInitFile != "" {
+		return starlarkInitFile
+	}
+	r, err := config.GetConfigFilePath("init.star")
+	if err != nil {
+		logflags.DebuggerLogger().Errorf("could not find starlark initialization file: %v", err)
+	}
+	return r
 }
 
 func must(err error) {

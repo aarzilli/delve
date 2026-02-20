@@ -19,11 +19,12 @@ dlv connect addr [flags]
 ### Options inherited from parent commands
 
 ```
-      --backend string      Backend selection (see 'dlv help backend'). (default "default")
-      --init string         Init file, executed by the terminal client.
-      --log                 Enable debugging server logging.
-      --log-dest string     Writes logs to the specified file or file descriptor (see 'dlv help log').
-      --log-output string   Comma separated list of components that should produce debug output (see 'dlv help log')
+      --backend string         Backend selection (see 'dlv help backend'). (default "default")
+      --init string            Init file, executed by the terminal client.
+      --log                    Enable debugging server logging.
+      --log-dest string        Writes logs to the specified file or file descriptor (see 'dlv help log').
+      --log-output string      Comma separated list of components that should produce debug output (see 'dlv help log')
+      --starlark-init string   Starlark init file, executed by the server. Defaults to init.star in Delve's configuration directory.
 ```
 
 ### SEE ALSO

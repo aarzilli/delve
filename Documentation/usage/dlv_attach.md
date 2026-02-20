@@ -40,6 +40,7 @@ dlv attach pid [executable] [flags]
       --log-dest string                  Writes logs to the specified file or file descriptor (see 'dlv help log').
       --log-output string                Comma separated list of components that should produce debug output (see 'dlv help log')
       --only-same-user                   Only connections from the same user that started this instance of Delve are allowed to connect. (default true)
+      --starlark-init string             Starlark init file, executed by the server. Defaults to init.star in Delve's configuration directory.
 ```
 
 ### SEE ALSO

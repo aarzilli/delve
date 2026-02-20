@@ -56,7 +56,10 @@ var (
 	ErrNotImplementedWithMultitarget = errors.New("not implemented for multiple targets")
 )
 
-const maximumPrettyPrintDuration = 100 * time.Millisecond
+const (
+	maximumPrettyPrintDuration  = 100 * time.Millisecond
+	maximumStarlarkInitDuration = 100 * time.Millisecond
+)
 
 // Debugger service.
 //
@@ -155,10 +158,8 @@ type Config struct {
 
 	// Stdin Redirect file path for stdin
 	Stdin string
-
 	// Redirects specifies redirect rules for stdout
 	Stdout proc.OutputRedirect
-
 	// Redirects specifies redirect rules for stderr
 	Stderr proc.OutputRedirect
 
@@ -167,6 +168,9 @@ type Config struct {
 
 	RrOnProcessPid int
 	RrDelOnDetach  bool
+
+	// StarlarkInitFile is the path to the starlark's init file
+	StarlarkInitFile string
 }
 
 // New creates a new Debugger. ProcessArgs specify the commandline arguments for the
@@ -247,6 +251,21 @@ func New(config *Config, processArgs []string) (*Debugger, error) {
 	}
 
 	d.StarlarkEnv = starlarkEnvNew(d)
+	if config.StarlarkInitFile != "" {
+		buf, err := os.ReadFile(config.StarlarkInitFile)
+		if err != nil {
+			logflags.DebuggerLogger().Errorf("Could not process starlark init file: %v", err)
+		} else {
+			to, cancel := context.WithTimeout(context.Background(), maximumStarlarkInitDuration)
+			defer cancel()
+			sthread := d.StarlarkEnv.newThread(to, nil)
+			go d.StarlarkEnv.execute(sthread, config.StarlarkInitFile, string(buf), false)
+			out := <-sthread.resp
+			if out.err != nil {
+				logflags.DebuggerLogger().Errorf("Error processing starlark init file: %v", err)
+			}
+		}
+	}
 
 	return d, nil
 }

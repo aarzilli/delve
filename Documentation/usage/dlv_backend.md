@@ -43,6 +43,7 @@ Some backends can be configured using environment variables:
       --log-output string                Comma separated list of components that should produce debug output (see 'dlv help log')
       --only-same-user                   Only connections from the same user that started this instance of Delve are allowed to connect. (default true)
   -r, --redirect stringArray             Specifies redirect rules for target process (see 'dlv help redirect')
+      --starlark-init string             Starlark init file, executed by the server. Defaults to init.star in Delve's configuration directory.
       --wd string                        Working directory for running the program.
 ```
 
