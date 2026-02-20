@@ -36,6 +36,7 @@ const (
 	defaultLoadConfigBuiltinName = "default_load_config"
 	targetObjectName             = "tgt"
 	customPrettyPrintObjectName  = "PrettyPrint"
+	goroutinesObjectName         = "gs"
 	helpBuiltinName              = "help"
 )
 
@@ -167,6 +168,7 @@ func starlarkEnvNew(d *Debugger) *StarlarkEnv {
 
 	env.defaultEnv[targetObjectName] = &starlarkTargetObject{env: env}
 	env.defaultEnv[customPrettyPrintObjectName] = &starlarkCustomPrettyPrintObject{env: env}
+	env.defaultEnv[goroutinesObjectName] = &starlarkGoroutinesObject{env: env}
 
 	builtindoc := func(name, args, descr string) {
 		env.builtinDoc[name] = name + args + "\n\n" + name + " " + descr
@@ -512,12 +514,12 @@ func (env *StarlarkEnv) createCommand(thread *starlarkThread, name string, val s
 	return nil
 }
 
-func (env *StarlarkEnv) lock() func() {
+func (env *StarlarkEnv) lock() (*proc.Target, func()) {
 	if env.isLocked {
-		return func() {}
+		return env.d.target.Selected, func() {}
 	}
-	_, unlock := env.d.LockTargetGroup()
-	return unlock
+	tgt, unlock := env.d.LockTargetGroup()
+	return tgt.Selected, unlock
 }
 
 func (env *StarlarkEnv) eval(scope api.EvalScope, expr string, timeout time.Duration, cfg proc.LoadConfig) (*proc.Variable, error) {
