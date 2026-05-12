@@ -4725,6 +4725,10 @@ func TestDump(t *testing.T) {
 		assertNoError(err, t, "Create()")
 		var state proc.DumpState
 		p.Dump(fh, flags, &state)
+		if state.Err != nil && strings.Contains(state.Err.Error(), "no space left on device") {
+			t.Log("skipping the rest of the test because we can't make the dump")
+			return nil
+		}
 		assertNoError(state.Err, t, "Dump()")
 		if state.ThreadsDone != state.ThreadsTotal || state.MemDone != state.MemTotal || !state.AllDone || state.Dumping || state.Canceled {
 			t.Fatalf("bad DumpState %#v", &state)
@@ -4818,8 +4822,10 @@ func TestDump(t *testing.T) {
 		t.Logf("testing normal dump")
 
 		c := makeDump(p, corePath, fixture.Path, 0)
-		defer os.Remove(corePath)
-		testDump(p, c)
+		if c != nil {
+			defer os.Remove(corePath)
+			testDump(p, c)
+		}
 
 		if runtime.GOOS == "linux" && runtime.GOARCH == "amd64" {
 			// No reason to do this test on other goos/goarch because they use the
