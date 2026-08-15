@@ -57,11 +57,11 @@ func TestGnuDebuglink(t *testing.T) {
 	run("objcopy", "--add-gnu-debuglink="+debuglinkDwoPath, debuglinkPath)
 
 	// open original executable
-	normalBinInfo := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH)
+	normalBinInfo := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH, false)
 	assertNoError(normalBinInfo.LoadBinaryInfo(fixture.Path, 0, []string{"/debugdir"}), t, "LoadBinaryInfo (normal exe)")
 
 	// open .gnu_debuglink executable
-	debuglinkBinInfo := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH)
+	debuglinkBinInfo := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH, false)
 	assertNoError(debuglinkBinInfo.LoadBinaryInfo(debuglinkPath, 0, []string{"/debugdir"}), t, "LoadBinaryInfo (gnu_debuglink exe)")
 
 	if len(normalBinInfo.Functions) != len(debuglinkBinInfo.Functions) {

@@ -48,7 +48,7 @@ func FuzzEvalExpression(f *testing.F) {
 	if os.IsNotExist(err) {
 		f.Skip("not setup")
 	}
-	bi := proc.NewBinaryInfo("linux", "amd64")
+	bi := proc.NewBinaryInfo("linux", "amd64", false)
 	assertNoError(bi.LoadBinaryInfo(fuzzExecutable, 0, nil), f, "LoadBinaryInfo")
 	fh, err := os.Open(fuzzInfoPath)
 	assertNoError(err, f, "Open fuzzInfoPath")

@@ -41,7 +41,7 @@ func fakeBinaryInfo(t *testing.T, dwb *dwarfbuilder.Builder) (*proc.BinaryInfo, 
 	dwdata, err := dwarf.New(abbrev, aranges, frame, info, line, pubnames, ranges, str)
 	assertNoError(err, t, "creating dwarf")
 
-	bi := proc.NewBinaryInfo("linux", "amd64")
+	bi := proc.NewBinaryInfo("linux", "amd64", false)
 	bi.LoadImageFromData(dwdata, frame, line, loc)
 
 	return bi, dwdata

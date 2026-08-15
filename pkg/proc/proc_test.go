@@ -4697,7 +4697,7 @@ func TestIssue2319(t *testing.T) {
 	fixture := protest.BuildFixture(t, "issue2319/", protest.BuildModeExternalLinker)
 
 	// Load up the binary and make sure there are no crashes.
-	bi := proc.NewBinaryInfo("linux", "amd64")
+	bi := proc.NewBinaryInfo("linux", "amd64", false)
 	assertNoError(bi.LoadBinaryInfo(fixture.Path, 0, nil), t, "LoadBinaryInfo")
 }
 
@@ -6147,7 +6147,7 @@ func TestDelveCatch(t *testing.T) {
 
 func TestTrimpathDetection(t *testing.T) {
 	f1 := protest.BuildFixture(t, "math", 0)
-	bi1 := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH)
+	bi1 := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH, false)
 	assertNoError(bi1.LoadBinaryInfo(f1.Path, 0x10000, nil), t, "LoadBinaryInfo")
 	if bi1.Images[0].Trimpath {
 		t.Error("expected trimpath used to be false, was true")
@@ -6157,7 +6157,7 @@ func TestTrimpathDetection(t *testing.T) {
 	buildinfo, _ := buildinfo.ReadFile(f2.Path)
 	fmt.Printf("%#v\n", buildinfo)
 
-	b2 := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH)
+	b2 := proc.NewBinaryInfo(runtime.GOOS, runtime.GOARCH, false)
 	assertNoError(b2.LoadBinaryInfo(f2.Path, 0x10000, nil), t, "LoadBinaryInfo")
 	if !b2.Images[0].Trimpath {
 		t.Error("expected trimpath used to be true, was false")
