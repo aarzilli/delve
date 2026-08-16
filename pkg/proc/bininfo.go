@@ -1155,8 +1155,18 @@ func (bi *BinaryInfo) AddImage(path string, addr uint64) error {
 	return err
 }
 
+// ResetDownloadsContext resets the downloads context. If the context was
+// cancelled before this BinaryInfo object will be able to do downloads
+// again.
+func (bi *BinaryInfo) ResetDownloadsContext() {
+	bi.cancelDownloadsMu.Lock()
+	bi.downloadsCtx, bi.cancelDownloads = context.WithCancel(context.Background())
+	bi.cancelDownloadsMu.Unlock()
+}
+
 // LoadImageBinaryInfoAgain loads the n-th image debug symbols if they weren't already loaded.
 func (bi *BinaryInfo) LoadImageBinaryInfoAgain(n int) error {
+	bi.attaching = false
 	if n < 0 || n >= len(bi.Images) || bi.Images[n].loadErr == nil {
 		return nil
 	}

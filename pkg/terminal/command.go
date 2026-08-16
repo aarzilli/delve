@@ -2724,11 +2724,10 @@ func libraries(t *Term, ctx callContext, args string) error {
 			if err != nil {
 				return err
 			}
-			t.client.DownloadLibraryDebugInfo(n)
+			return t.client.DownloadLibraryDebugInfo(n)
 		default:
 			return errors.New("wrong arguments")
 		}
-		return nil
 	}
 
 	libs, _, err := t.client.ListDynamicLibraries()

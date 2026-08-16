@@ -73,6 +73,9 @@ type Term struct {
 
 	substitutePathRulesCache [][2]string
 
+	// isAttachCmd is true if this terminal was stated by 'dlv attach...'
+	isAttachCmd bool
+
 	// quitContinue is set to true by exitCommand to signal that the process
 	// should be resumed before quitting.
 	quitContinue bool
@@ -104,7 +107,7 @@ type displayEntry struct {
 }
 
 // New returns a new Term.
-func New(client service.Client, conf *config.Config) *Term {
+func New(client service.Client, conf *config.Config, isAttachCmd bool) *Term {
 	cmds := DebugCommands(client)
 	if conf != nil && conf.Aliases != nil {
 		cmds.Merge(conf.Aliases)
@@ -120,6 +123,8 @@ func New(client service.Client, conf *config.Config) *Term {
 		line:   liner.NewLiner(),
 		cmds:   cmds,
 		stdout: &transcriptWriter{pw: &pagingWriter{w: os.Stdout}},
+
+		isAttachCmd: isAttachCmd,
 	}
 	t.line.SetCtrlZStop(true)
 
@@ -154,7 +159,7 @@ func New(client service.Client, conf *config.Config) *Term {
 				}
 				fmt.Fprintf(t.stdout, "Downloading debug info for %s: %s (press ^C to cancel)", event.BinaryInfoDownloadEventDetails.ImagePath, event.BinaryInfoDownloadEventDetails.Progress)
 				firstEventBinaryInfoDownload = false
-			case api.EventStopped:
+			case api.EventStopped, api.EventDownloadLibraryInfoDone:
 				t.downloadsMu.Lock()
 				t.downloadsInProgress = false
 				t.downloadsMu.Unlock()
@@ -415,6 +420,10 @@ func (t *Term) Run() (int, error) {
 	// Ensure that the target process is neither running nor recording by
 	// making a blocking call.
 	_, _ = t.client.GetState()
+
+	if t.isAttachCmd {
+		t.client.DownloadLibraryDebugInfo(-1)
+	}
 
 	for {
 		locs = nil

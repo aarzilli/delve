@@ -152,7 +152,7 @@ func withTestTerminalBuildFlags(name string, t testing.TB, buildFlags test.Build
 
 	ft := &FakeTerminal{
 		t:    t,
-		Term: New(client, &config.Config{}),
+		Term: New(client, &config.Config{}, false),
 	}
 	fn(ft)
 }
@@ -1340,7 +1340,7 @@ func TestClearCondBreakpoint(t *testing.T) {
 func TestBreakpointEditing(t *testing.T) {
 	term := &FakeTerminal{
 		t:    t,
-		Term: New(nil, &config.Config{}),
+		Term: New(nil, &config.Config{}, false),
 	}
 	_ = term
 
@@ -1997,7 +1997,6 @@ func TestCommandPromptExpansion(t *testing.T) {
 		}
 	})
 }
-
 
 // TestPrintShowRawStrings tests the show-raw-strings config option that
 // controls whether escape characters in string values are displayed as

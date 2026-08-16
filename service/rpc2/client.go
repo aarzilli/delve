@@ -169,7 +169,7 @@ func (c *RPCClient) drainEvents() <-chan struct{} {
 			}
 			for _, event := range out.Events {
 				c.eventsFn(&event)
-				if event.Kind == api.EventStopped {
+				if event.Kind == api.EventStopped || event.Kind == api.EventDownloadLibraryInfoDone {
 					return
 				}
 			}
@@ -715,7 +715,7 @@ func (c *RPCClient) CancelDownloads() error {
 
 func (c *RPCClient) DownloadLibraryDebugInfo(n int) error {
 	out := DownloadLibraryDebugInfoOut{}
-	return c.call("DownloadLibraryDebugInfo", DownloadLibraryDebugInfoIn{n}, out)
+	return c.callWhileDrainingEvents("DownloadLibraryDebugInfo", DownloadLibraryDebugInfoIn{n, c.eventsFn != nil}, &out)
 }
 
 func (c *RPCClient) TypeInfo(name string) (*api.TypeInfo, error) {

@@ -3499,6 +3499,93 @@ func TestCancelDownload(t *testing.T) {
 	})
 }
 
+func TestCancelDownloadAfterAttach(t *testing.T) {
+	if testBackend == "rr" {
+		return
+	}
+	if runtime.GOOS != "linux" {
+		t.Skip("linux only")
+	}
+	if runtime.GOARCH == "ppc64le" {
+		t.Skip("cgo support broken")
+	}
+
+	fakedebuginfodDir, _ := filepath.Abs(filepath.Join(protest.FindFixturesDir(), "fake-debuginfod-find"))
+	t.Setenv("PATH", os.ExpandEnv(fakedebuginfodDir+":$PATH"))
+
+	listener, clientConn := service.ListenerPipe()
+	defer listener.Close()
+	var buildFlags protest.BuildFlags
+	if buildMode == "pie" {
+		buildFlags |= protest.BuildModePIE
+	}
+	fixture := protest.BuildFixture(t, "cgotest", buildFlags)
+
+	cmd := exec.Command(fixture.Path, "sleep")
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	assertNoError(cmd.Start(), t, "starting fixture")
+	defer cmd.Process.Kill()
+
+	time.Sleep(500 * time.Millisecond)
+
+	t0 := time.Now()
+	server := rpccommon.NewServer(&service.Config{
+		Listener:   listener,
+		APIVersion: 2,
+		Debugger: debugger.Config{
+			AttachPid:  cmd.Process.Pid,
+			WorkingDir: ".",
+			Backend:    testBackend,
+		},
+	})
+	if err := server.Run(); err != nil {
+		t.Fatal(err)
+	}
+
+	client := rpc2.NewClientFromConn(clientConn)
+	defer server.Stop()
+
+	if time.Since(t0) > 3*time.Second {
+		t.Fatalf("Attach took too long, debuginfo downloads were probably performed (%v)", time.Since(t0))
+	}
+
+	libs, _, err := client.ListDynamicLibraries()
+	assertNoError(err, t, "ListDynamicLibraries")
+	debuginfodSkipFound := false
+	for _, lib := range libs {
+		if strings.Contains(lib.LoadError, "debuginfod") {
+			debuginfodSkipFound = true
+		}
+	}
+	if !debuginfodSkipFound {
+		t.Logf("%#v", libs)
+		t.Fatal("Could not find library with skipped debuginfod download")
+	}
+
+	eventReceived := false
+	client.SetEventsFn(func(ev *api.Event) {
+		switch ev.Kind {
+		case api.EventBinaryInfoDownload:
+			eventReceived = true
+			client.CancelDownloads()
+		}
+	})
+
+	t0 = time.Now()
+	client.DownloadLibraryDebugInfo(-1)
+
+	if !eventReceived {
+		t.Errorf("Download did not start")
+	}
+	if time.Since(t0) > 3*time.Second {
+		t.Fatalf("DownloadLibraryDebugInfo took too long, we were unable to cancel debuginfo downloads (%v)", time.Since(t0))
+	}
+
+	client.Detach(true)
+}
+
 func TestEvalNonunicodeString(t *testing.T) {
 	// Non-unicode strings can not be sent through json encoding without being
 	// altered, check that our workaround works.

@@ -1252,14 +1252,21 @@ func (s *RPCServer) CancelDownloads(arg CancelDownloadsIn, cb service.RPCCallbac
 }
 
 type DownloadLibraryDebugInfoIn struct {
-	N int
+	N          int
+	WithEvents bool
 }
 
 type DownloadLibraryDebugInfoOut struct {
 }
 
-func (s *RPCServer) DownloadLibraryDebugInfo(arg DownloadLibraryDebugInfoIn, out DownloadLibraryDebugInfoOut) error {
-	return s.debugger.DownloadLibraryDebugInfo(arg.N)
+func (s *RPCServer) DownloadLibraryDebugInfo(arg DownloadLibraryDebugInfoIn, cb service.RPCCallback) {
+	close(cb.SetupDoneChan())
+	eventsFn := s.eventsFn
+	if !arg.WithEvents {
+		eventsFn = nil
+	}
+	err := s.debugger.DownloadLibraryDebugInfo(arg.N+1, eventsFn)
+	cb.Return(new(DownloadLibraryDebugInfoOut), err)
 }
 
 type TypeInfoIn struct {

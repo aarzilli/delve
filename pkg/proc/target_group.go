@@ -651,6 +651,7 @@ const (
 	EventBinaryInfoDownload
 	EventBreakpointMaterialized
 	EventProcessSpawned
+	EventDownloadLibraryInfoDone
 )
 
 // BinaryInfoDownloadEventDetails describes the details of a BinaryInfoDownloadEvent

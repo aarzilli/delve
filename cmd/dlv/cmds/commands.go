@@ -291,7 +291,7 @@ or later, -gcflags="-N -l" on earlier versions of Go.`,
 			return nil
 		},
 		Run: func(cmd *cobra.Command, args []string) {
-			os.Exit(execute(0, args, conf, "", debugger.ExecutingExistingFile, args, buildFlags))
+			os.Exit(execute(0, args, conf, "", debugger.ExecutingExistingFile, args, buildFlags, false))
 		},
 		ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 			if len(args) != 0 {
@@ -437,7 +437,7 @@ https://github.com/mozilla/rr
 			Run: func(cmd *cobra.Command, args []string) {
 				backend = "rr"
 				rrDelOnDetach = false
-				os.Exit(execute(0, []string{}, conf, args[0], debugger.ExecutingOther, args, buildFlags))
+				os.Exit(execute(0, []string{}, conf, args[0], debugger.ExecutingOther, args, buildFlags, false))
 			},
 			ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 				if len(args) > 2 {
@@ -664,7 +664,7 @@ func debugCmd(cmd *cobra.Command, args []string) {
 		}
 		defer gobuild.Remove(debugname)
 		processArgs := append([]string{debugname}, targetArgs...)
-		return execute(0, processArgs, conf, "", debugger.ExecutingGeneratedFile, dlvArgs, buildFlags)
+		return execute(0, processArgs, conf, "", debugger.ExecutingGeneratedFile, dlvArgs, buildFlags, false)
 	}()
 	os.Exit(status)
 }
@@ -839,7 +839,7 @@ func traceCmd(cmd *cobra.Command, args []string, conf *config.Config) int {
 		cfg := &config.Config{
 			TraceShowTimestamp: traceShowTimestamp,
 		}
-		t := terminal.New(client, cfg)
+		t := terminal.New(client, cfg, false)
 		t.SetTraceNonInteractive()
 		t.TraceVerbosity = traceVerbose
 		t.RedirectTo(os.Stderr)
@@ -938,7 +938,7 @@ func testCmd(cmd *cobra.Command, args []string) {
 			workingDir = getPackageDir(dlvArgs)
 		}
 
-		return execute(0, processArgs, conf, "", debugger.ExecutingGeneratedTest, dlvArgs, buildFlags)
+		return execute(0, processArgs, conf, "", debugger.ExecutingGeneratedTest, dlvArgs, buildFlags, false)
 	}()
 	os.Exit(status)
 }
@@ -972,11 +972,11 @@ func attachCmd(_ *cobra.Command, args []string) {
 		}
 		args = args[1:]
 	}
-	os.Exit(execute(pid, args, conf, "", debugger.ExecutingOther, args, buildFlags))
+	os.Exit(execute(pid, args, conf, "", debugger.ExecutingOther, args, buildFlags, true))
 }
 
 func coreCmd(_ *cobra.Command, args []string) {
-	os.Exit(execute(0, []string{args[0]}, conf, args[1], debugger.ExecutingOther, args, buildFlags))
+	os.Exit(execute(0, []string{args[0]}, conf, args[1], debugger.ExecutingOther, args, buildFlags, false))
 }
 
 func connectCmd(_ *cobra.Command, args []string) {
@@ -994,7 +994,7 @@ func connectCmd(_ *cobra.Command, args []string) {
 		logflags.Close()
 		os.Exit(1)
 	}
-	ec := connect(addr, nil, conf)
+	ec := connect(addr, nil, conf, false)
 	logflags.Close()
 	os.Exit(ec)
 }
@@ -1032,7 +1032,7 @@ func splitArgs(cmd *cobra.Command, args []string) ([]string, []string) {
 	return args, []string{}
 }
 
-func connect(addr string, clientConn net.Conn, conf *config.Config) int {
+func connect(addr string, clientConn net.Conn, conf *config.Config, isAttachCmd bool) int {
 	// Create and start a terminal - attach to running instance
 	var client *rpc2.RPCClient
 	if clientConn == nil {
@@ -1055,7 +1055,7 @@ func connect(addr string, clientConn net.Conn, conf *config.Config) int {
 			}
 		}
 	}
-	term := terminal.New(client, conf)
+	term := terminal.New(client, conf, isAttachCmd)
 	term.InitFile = initFile
 	status, err := term.Run()
 	if err != nil {
@@ -1064,7 +1064,7 @@ func connect(addr string, clientConn net.Conn, conf *config.Config) int {
 	return status
 }
 
-func execute(attachPid int, processArgs []string, conf *config.Config, coreFile string, kind debugger.ExecuteKind, dlvArgs []string, buildFlags string) int {
+func execute(attachPid int, processArgs []string, conf *config.Config, coreFile string, kind debugger.ExecuteKind, dlvArgs []string, buildFlags string, isAttachCmd bool) int {
 	if err := logflags.Setup(logFlag, logOutput, logDest); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err)
 		return 1
@@ -1217,7 +1217,7 @@ func execute(attachPid int, processArgs []string, conf *config.Config, coreFile 
 		return 0
 	}
 
-	return connect(listener.Addr().String(), clientConn, conf)
+	return connect(listener.Addr().String(), clientConn, conf, isAttachCmd)
 }
 
 func parseRedirects(redirects []string) ([3]string, error) {
