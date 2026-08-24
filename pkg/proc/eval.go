@@ -2883,6 +2883,10 @@ func (v *Variable) sliceAccess(idx int) (*Variable, error) {
 }
 
 func (v *Variable) mapAccess(idx *Variable) (*Variable, error) {
+	// TODO(aarzilli): here if the memory is corrupt we could end up looking at
+	// a lot of memory, and taking a long time. However there is also no
+	// obvious limit that we can impose.
+	// Maybe this isn't necessary, segfaults may stop us quickly enough.
 	it := v.mapIterator(0)
 	if it == nil {
 		return nil, fmt.Errorf("can not access unreadable map: %v", v.Unreadable)

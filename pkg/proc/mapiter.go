@@ -508,12 +508,17 @@ func (it *mapIteratorSwiss) next() bool {
 		return false
 	}
 	for it.dirIdx < it.dirLen {
+		if it.maxNumGroups > 0 && it.groupIdx+it.groupCount >= it.maxNumGroups {
+			it.v.Unreadable = fmt.Errorf("max number of groups exceeded: %d", it.groupCount)
+			return false
+		}
 		if it.tab == nil {
 			it.loadCurrentTable()
 			if it.tab == nil {
 				return false
 			}
 			if it.tab.index != it.dirIdx {
+				it.groupCount++ // count this as visiting a group so that maxNumGroups is held even if memory is corrupted and there are no real tables.
 				it.nextTable()
 				continue
 			}
@@ -521,6 +526,7 @@ func (it *mapIteratorSwiss) next() bool {
 
 		for ; it.groupIdx < uint64(it.tab.groups.Len); it.nextGroup() {
 			if it.maxNumGroups > 0 && it.groupIdx+it.groupCount >= it.maxNumGroups {
+				it.v.Unreadable = fmt.Errorf("max number of groups exceeded: %d", it.groupCount)
 				return false
 			}
 			if it.group == nil {
@@ -642,9 +648,15 @@ func (it *mapIteratorSwiss) loadCurrentTable() {
 	}
 
 	// convert the type of groups from *group to *[len]group so that it's easier to use
-	r.groups.DwarfType = pointerTo(fakeArrayType(groupsLengthMask+1, it.groupType), it.v.bi.Arch)
+	fat := fakeArrayType(groupsLengthMask+1, it.groupType)
+	r.groups.DwarfType = pointerTo(fat, it.v.bi.Arch)
 	r.groups.RealType = r.groups.DwarfType
 	r.groups = r.groups.maybeDereference()
+	if r.groups.stride != fat.(*godwarf.ArrayType).StrideBitSize/8 {
+		// This discrpancy indicates an overflow in the multiplication of the
+		// element type size and the number of elements in fakeArrayType.
+		it.v.Unreadable = fmt.Errorf("impossible table lenght in swiss table: %d", groupsLengthMask)
+	}
 
 	if r.groups.Addr == 0 {
 		it.v.Unreadable = errSwissTableNilGroups

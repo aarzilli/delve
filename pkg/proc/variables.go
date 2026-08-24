@@ -173,7 +173,7 @@ type LoadConfig struct {
 	//
 	// When this happens delve will have to scan many empty buckets to find the
 	// few entries in the map.
-	// MaxMapBuckets can be set to avoid annoying slowdowns␣while reading
+	// MaxMapBuckets can be set to avoid annoying slowdowns while reading
 	// very sparse maps.
 	//
 	// Since there is no good way for a user of delve to specify the value of
