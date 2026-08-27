@@ -2567,7 +2567,7 @@ func BenchmarkTrace(b *testing.B) {
 			assertNoError(grp.Continue(), b, "Continue()")
 			s, err := proc.GoroutineScope(p, p.CurrentThread())
 			assertNoError(err, b, "Scope()")
-			_, err = s.FunctionArguments(proc.LoadConfig{false, 0, 64, 0, 3, 0})
+			_, err = s.FunctionArguments(proc.LoadConfig{false, 0, 64, 0, 3, 0, 0})
 			assertNoError(err, b, "FunctionArguments()")
 		}
 		b.StopTimer()
@@ -4082,7 +4082,7 @@ func TestIssue1432(t *testing.T) {
 		scope, err := proc.GoroutineScope(p, p.CurrentThread())
 		assertNoError(err, t, "GoroutineScope()")
 
-		err = scope.SetVariable(fmt.Sprintf("(*\"main.s\")(%#x).i", svar.Addr), "10")
+		err = scope.SetVariable(fmt.Sprintf("(*\"main.s\")(%#x).i", svar.Addr), "10", 0)
 		assertNoError(err, t, "SetVariable")
 	})
 }
@@ -5297,7 +5297,7 @@ func TestSetOnFunctions(t *testing.T) {
 		assertNoError(grp.Continue(), t, "Continue()")
 		scope, err := proc.GoroutineScope(p, p.CurrentThread())
 		assertNoError(err, t, "GoroutineScope")
-		err = scope.SetVariable("main.func1", "main.func2")
+		err = scope.SetVariable("main.func1", "main.func2", 0)
 		if err == nil {
 			t.Fatal("expected error when assigning between function variables")
 		}
