@@ -307,7 +307,7 @@ func (loc *AddrLocationSpec) Find(t *proc.Target, _ []string, scope *proc.EvalSc
 		return []api.Location{{PC: uint64(addr)}}, "", nil
 	}
 
-	v, err := scope.EvalExpression(loc.AddrExpr, proc.LoadConfig{FollowPointers: true})
+	v, err := scope.EvalExpression(loc.AddrExpr, 0, proc.LoadConfig{FollowPointers: true})
 	if err != nil {
 		return nil, "", err
 	}

@@ -292,6 +292,9 @@ type launchAttachArgs struct {
 	MaxStringLen int `cfgName:"maxStringLen"`
 	// MaxArrayValues is the maximum number of array, slice and map elements loaded.
 	MaxArrayValues int `cfgName:"maxArrayValues"`
+	// EvalTimeout is the expression evaluation timeout in milliseconds. A
+	// value of 0 defaults to 100 milliseconds.
+	EvalTimeout int64 `cfgName:"evalTimeout"`
 	// ShowGlobalVariables indicates if global package variables should be loaded.
 	ShowGlobalVariables bool `cfgName:"showGlobalVariables"`
 	// ShowRegisters indicates if register values should be loaded.
@@ -383,6 +386,10 @@ func (s *Session) loadConfig() proc.LoadConfig {
 		cfg.MaxArrayValues = n
 	}
 	return cfg
+}
+
+func (s *Session) evalTimeout() time.Duration {
+	return time.Duration(s.args.EvalTimeout) * time.Millisecond
 }
 
 const (
@@ -3036,7 +3043,7 @@ func (s *Session) metadataToDAPVariables(v *fullyQualifiedVariable) ([]dap.Varia
 		// We know that this is an array/slice of Uint8 or Int32, so we will load up to MaxStringLen.
 		config := s.loadConfig()
 		config.MaxArrayValues = config.MaxStringLen
-		vLoaded, err := s.debugger.EvalVariableInScope(-1, 0, 0, loadExpr, config)
+		vLoaded, err := s.debugger.EvalVariableInScope(-1, 0, 0, loadExpr, 0, config)
 		if err == nil {
 			val := s.convertVariableToString(vLoaded)
 			// TODO(suzmue): Add evaluate name. Using string(name) will not get the same result because the
@@ -3145,7 +3152,7 @@ func (s *Session) convertVariableWithOpts(v *proc.Variable, qualifiedNameOrExpr 
 		// This is not really necessary now because users have no way of setting FollowPointers to false.
 		config := s.loadConfig()
 		config.FollowPointers = true
-		vLoaded, err := s.debugger.EvalVariableInScope(-1, 0, 0, loadExpr, config)
+		vLoaded, err := s.debugger.EvalVariableInScope(-1, 0, 0, loadExpr, 0, config)
 		if err != nil {
 			value += fmt.Sprintf(" - FAILED TO LOAD: %s", err)
 		} else {
@@ -3177,7 +3184,7 @@ func (s *Session) convertVariableWithOpts(v *proc.Variable, qualifiedNameOrExpr 
 					cTypeName := api.PrettyTypeName(v.Children[0].DwarfType)
 					cLoadExpr := fmt.Sprintf("*(*%q)(%#x)", cTypeName, v.Children[0].Addr)
 					s.config.log.Debugf("loading *(%s) (type %s) with %s", qualifiedNameOrExpr, cTypeName, cLoadExpr)
-					cLoaded, err := s.debugger.EvalVariableInScope(-1, 0, 0, cLoadExpr, s.loadConfig())
+					cLoaded, err := s.debugger.EvalVariableInScope(-1, 0, 0, cLoadExpr, 0, s.loadConfig())
 					if err != nil {
 						value += fmt.Sprintf(" - FAILED TO LOAD: %s", err)
 					} else {
@@ -3329,7 +3336,7 @@ func (s *Session) onEvaluateRequest(request *dap.EvaluateRequest) {
 			}
 		}
 	} else { // {expression}
-		exprVar, err := s.debugger.EvalVariableInScope(int64(goid), frame, 0, expr, s.loadConfig())
+		exprVar, err := s.debugger.EvalVariableInScope(int64(goid), frame, 0, expr, s.evalTimeout(), s.loadConfig())
 		if err != nil {
 			s.sendErrorResponseWithOpts(request.Request, UnableToEvaluateExpression, "Unable to evaluate expression", err.Error(), showErrorToUser)
 			return
@@ -3343,7 +3350,7 @@ func (s *Session) onEvaluateRequest(request *dap.EvaluateRequest) {
 					// Reload the string value with a bigger limit.
 					loadCfg := s.loadConfig()
 					loadCfg.MaxStringLen = maxSingleStringLen
-					if v, err := s.debugger.EvalVariableInScope(int64(goid), frame, 0, request.Arguments.Expression, loadCfg); err != nil {
+					if v, err := s.debugger.EvalVariableInScope(int64(goid), frame, 0, request.Arguments.Expression, s.evalTimeout(), loadCfg); err != nil {
 						s.config.log.Debugf("Failed to load more for %v: %v", request.Arguments.Expression, err)
 					} else {
 						exprVar = v
@@ -3621,7 +3628,7 @@ func (s *Session) onSetVariableRequest(request *dap.SetVariableRequest) {
 	// trying to update is valid and accessible from the frame & goroutine of
 	// the scope that owns it.
 	goid, frame := v.goroutineID, v.frameIndex
-	evaluated, err := s.debugger.EvalVariableInScope(int64(goid), frame, 0, evaluateName, s.loadConfig())
+	evaluated, err := s.debugger.EvalVariableInScope(int64(goid), frame, 0, evaluateName, s.evalTimeout(), s.loadConfig())
 	if err != nil {
 		s.sendErrorResponse(request.Request, UnableToSetVariable, "Unable to lookup variable", err.Error())
 		return
@@ -3664,7 +3671,7 @@ func (s *Session) onSetVariableRequest(request *dap.SetVariableRequest) {
 			return
 		}
 	} else {
-		if err := s.debugger.SetVariableInScope(int64(goid), frame, 0, evaluateName, arg.Value); err != nil {
+		if err := s.debugger.SetVariableInScope(int64(goid), frame, 0, evaluateName, arg.Value, s.evalTimeout()); err != nil {
 			s.sendErrorResponse(request.Request, UnableToSetVariable, "Unable to set variable", err.Error())
 			return
 		}
@@ -4223,7 +4230,7 @@ func (s *Session) panicReason(goroutineID int64) (string, error) {
 }
 
 func (s *Session) getExprString(expr string, goroutineID int64, frame int) (string, error) {
-	exprVar, err := s.debugger.EvalVariableInScope(goroutineID, frame, 0, expr, s.loadConfig())
+	exprVar, err := s.debugger.EvalVariableInScope(goroutineID, frame, 0, expr, s.evalTimeout(), s.loadConfig())
 	if err != nil {
 		return "", err
 	}
@@ -4639,7 +4646,7 @@ func (s *Session) logBreakpointMessage(bp *api.Breakpoint, goid int64) bool {
 func (msg *logMessage) evaluate(s *Session, goid int64) string {
 	evaluated := make([]any, len(msg.args))
 	for i := range msg.args {
-		exprVar, err := s.debugger.EvalVariableInScope(goid, 0, 0, msg.args[i], s.loadConfig())
+		exprVar, err := s.debugger.EvalVariableInScope(goid, 0, 0, msg.args[i], s.evalTimeout(), s.loadConfig())
 		if err != nil {
 			evaluated[i] = fmt.Sprintf("{eval err: %e}", err)
 			continue

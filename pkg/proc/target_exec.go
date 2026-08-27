@@ -1278,7 +1278,7 @@ func setStepIntoNewProcBreakpoint(p *Target, sameGCond ast.Expr) {
 		if err != nil {
 			return false, err
 		}
-		v, err := scope.EvalExpression("newg.goid", loadSingleValue)
+		v, err := scope.EvalExpression("newg.goid", 0, loadSingleValue)
 		if err != nil {
 			return false, err
 		}
@@ -1287,7 +1287,7 @@ func setStepIntoNewProcBreakpoint(p *Target, sameGCond ast.Expr) {
 		}
 		newGGoID, _ := constant.Int64Val(v.Value)
 
-		v, err = scope.EvalExpression("newg.startpc", loadSingleValue)
+		v, err = scope.EvalExpression("newg.startpc", 0, loadSingleValue)
 		if err != nil {
 			return false, err
 		}

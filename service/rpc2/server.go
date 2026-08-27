@@ -566,9 +566,10 @@ func (s *RPCServer) ListFunctionArgs(arg ListFunctionArgsIn, out *ListFunctionAr
 }
 
 type EvalIn struct {
-	Scope api.EvalScope
-	Expr  string
-	Cfg   *api.LoadConfig
+	Scope   api.EvalScope
+	Expr    string
+	Cfg     *api.LoadConfig
+	Timeout int64 // timeout in milliseconds, when 0 is specified defaults to 100ms
 }
 
 type EvalOut struct {
@@ -586,7 +587,10 @@ func (s *RPCServer) Eval(arg EvalIn, out *EvalOut) error {
 		cfg = api.LoadConfigFromProc(&full)
 	}
 	pcfg := *api.LoadConfigToProc(cfg)
-	v, err := s.debugger.EvalVariableInScope(arg.Scope.GoroutineID, arg.Scope.Frame, arg.Scope.DeferredCall, arg.Expr, pcfg)
+	if arg.Timeout == 0 {
+		arg.Timeout = 100
+	}
+	v, err := s.debugger.EvalVariableInScope(arg.Scope.GoroutineID, arg.Scope.Frame, arg.Scope.DeferredCall, arg.Expr, time.Duration(arg.Timeout)*time.Millisecond, pcfg)
 	if err != nil {
 		return err
 	}
@@ -595,9 +599,10 @@ func (s *RPCServer) Eval(arg EvalIn, out *EvalOut) error {
 }
 
 type SetIn struct {
-	Scope  api.EvalScope
-	Symbol string
-	Value  string
+	Scope   api.EvalScope
+	Symbol  string
+	Value   string
+	Timeout int64 // timeout in milliseconds, 0 defaults to 100 milliseconds.
 }
 
 type SetOut struct {
@@ -606,7 +611,10 @@ type SetOut struct {
 // Set sets the value of a variable. Only numerical types and
 // pointers are currently supported.
 func (s *RPCServer) Set(arg SetIn, out *SetOut) error {
-	return s.debugger.SetVariableInScope(arg.Scope.GoroutineID, arg.Scope.Frame, arg.Scope.DeferredCall, arg.Symbol, arg.Value)
+	if arg.Timeout == 0 {
+		arg.Timeout = 100
+	}
+	return s.debugger.SetVariableInScope(arg.Scope.GoroutineID, arg.Scope.Frame, arg.Scope.DeferredCall, arg.Symbol, arg.Value, time.Duration(arg.Timeout)*time.Millisecond)
 }
 
 type ListSourcesIn struct {

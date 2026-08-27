@@ -293,7 +293,7 @@ func (env *Env) variableValueToStarlarkValue(v *api.Variable, top bool) (starlar
 }
 
 func (env *Env) autoLoad(expr string) *api.Variable {
-	v, err := env.ctx.Client().EvalVariable(api.EvalScope{GoroutineID: -1}, expr, autoLoadConfig)
+	v, err := env.ctx.Client().EvalVariable(api.EvalScope{GoroutineID: -1}, expr, 0, autoLoadConfig)
 	if err != nil {
 		return &api.Variable{Unreadable: err.Error()}
 	}
@@ -739,7 +739,7 @@ func (tgt starlarkTargetObject) AttrNames() []string {
 
 func (tgt starlarkTargetObject) Attr(name string) (starlark.Value, error) {
 	env := tgt.env
-	v, err := env.ctx.Client().EvalVariable(env.ctx.Scope(), name, env.ctx.LoadConfig())
+	v, err := env.ctx.Client().EvalVariable(env.ctx.Scope(), name, 0, env.ctx.LoadConfig())
 	if err != nil {
 		return starlark.None, fmt.Errorf("could not find variable %q: %v", name, err)
 	}

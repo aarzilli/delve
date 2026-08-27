@@ -1051,7 +1051,7 @@ var errTracebackAncestorsDisabled = errors.New("tracebackancestors is disabled")
 // Ancestors returns the list of ancestors for g.
 func Ancestors(p *Target, g *G, n int) ([]Ancestor, error) {
 	scope := globalScope(p, p.BinInfo(), p.BinInfo().Images[0], p.Memory())
-	tbav, err := scope.EvalExpression("runtime.debug.tracebackancestors", loadSingleValue)
+	tbav, err := scope.EvalExpression("runtime.debug.tracebackancestors", 0, loadSingleValue)
 	if err == nil && tbav.Unreadable == nil && tbav.Kind == reflect.Int {
 		tba, _ := constant.Int64Val(tbav.Value)
 		if tba == 0 {
@@ -2022,7 +2022,7 @@ func (v *Variable) loadMap(recurseLevel int, cfg LoadConfig) {
 	}
 
 	for skip := 0; skip < v.mapSkip; skip++ {
-		if ok := it.next(); !ok {
+		if ok := it.next(nil); !ok {
 			v.Unreadable = errors.New("map index out of bounds")
 			return
 		}
@@ -2030,7 +2030,7 @@ func (v *Variable) loadMap(recurseLevel int, cfg LoadConfig) {
 
 	count := 0
 	errcount := 0
-	for it.next() {
+	for it.next(nil) {
 		key := it.key()
 		val := it.value()
 		key.loadValueInternal(recurseLevel+1, cfg)

@@ -635,6 +635,14 @@ func (t *Term) loadConfig() api.LoadConfig {
 	return r
 }
 
+// evalTimeout returns the expression evaluation timeout in milliseconds
+func (t *Term) evalTimeout() int64 {
+	if t.conf != nil {
+		return t.conf.EvalTimeout
+	}
+	return 0
+}
+
 func (t *Term) removeDisplay(n int) error {
 	if n < 0 || n >= len(t.displays) {
 		return fmt.Errorf("%d is out of range", n)
@@ -664,7 +672,7 @@ func (t *Term) rawStringFlag() api.PrettyFlags {
 
 func (t *Term) printDisplay(i int) {
 	expr, fmtstr := t.displays[i].expr, t.displays[i].fmtstr
-	val, err := t.client.EvalVariable(api.EvalScope{GoroutineID: -1}, expr, ShortLoadConfig)
+	val, err := t.client.EvalVariable(api.EvalScope{GoroutineID: -1}, expr, t.evalTimeout(), ShortLoadConfig)
 	if err != nil {
 		if isErrProcessExited(err) {
 			return

@@ -376,15 +376,15 @@ func (c *RPCClient) GetThread(id int) (*api.Thread, error) {
 	return out.Thread, err
 }
 
-func (c *RPCClient) EvalVariable(scope api.EvalScope, expr string, cfg api.LoadConfig) (*api.Variable, error) {
+func (c *RPCClient) EvalVariable(scope api.EvalScope, expr string, timeout int64, cfg api.LoadConfig) (*api.Variable, error) {
 	var out EvalOut
-	err := c.call("Eval", EvalIn{scope, expr, &cfg}, &out)
+	err := c.call("Eval", EvalIn{scope, expr, &cfg, timeout}, &out)
 	return out.Variable, err
 }
 
-func (c *RPCClient) SetVariable(scope api.EvalScope, symbol, value string) error {
+func (c *RPCClient) SetVariable(scope api.EvalScope, symbol, value string, timeout int64) error {
 	out := new(SetOut)
-	return c.call("Set", SetIn{scope, symbol, value}, out)
+	return c.call("Set", SetIn{scope, symbol, value, timeout}, out)
 }
 
 func (c *RPCClient) ListSources(filter string) ([]string, error) {

@@ -1345,7 +1345,7 @@ func (d *Debugger) collectBreakpointInformation(apiThread *api.Thread, thread pr
 		bpi.Variables = make([]api.Variable, len(bp.Variables))
 	}
 	for i := range bp.Variables {
-		v, err := s.EvalExpression(bp.Variables[i], proc.LoadFullValue())
+		v, err := s.EvalExpression(bp.Variables[i], 0, proc.LoadFullValue())
 		if err != nil {
 			bpi.Variables[i] = api.Variable{Name: bp.Variables[i], Unreadable: fmt.Sprintf("eval error: %v", err)}
 		} else {
@@ -1752,7 +1752,7 @@ func (d *Debugger) Function(goid int64, frame, deferredCall int) (*proc.Function
 
 // EvalVariableInScope will attempt to evaluate the 'expr' in the scope
 // corresponding to the given 'frame' on the goroutine identified by 'goid'.
-func (d *Debugger) EvalVariableInScope(goid int64, frame, deferredCall int, expr string, cfg proc.LoadConfig) (*proc.Variable, error) {
+func (d *Debugger) EvalVariableInScope(goid int64, frame, deferredCall int, expr string, timeout time.Duration, cfg proc.LoadConfig) (*proc.Variable, error) {
 	d.targetMutex.Lock()
 	defer d.targetMutex.Unlock()
 
@@ -1760,7 +1760,7 @@ func (d *Debugger) EvalVariableInScope(goid int64, frame, deferredCall int, expr
 	if err != nil {
 		return nil, err
 	}
-	return s.EvalExpression(expr, cfg)
+	return s.EvalExpression(expr, timeout, cfg)
 }
 
 // LoadResliced will attempt to 'reslice' a map, array or slice so that the values
@@ -1773,15 +1773,19 @@ func (d *Debugger) LoadResliced(v *proc.Variable, start int, cfg proc.LoadConfig
 
 // SetVariableInScope will set the value of the variable represented by
 // 'symbol' to the value given, in the given scope.
-func (d *Debugger) SetVariableInScope(goid int64, frame, deferredCall int, symbol, value string) error {
+func (d *Debugger) SetVariableInScope(goid int64, frame, deferredCall int, symbol, value string, timeout time.Duration) error {
 	d.targetMutex.Lock()
 	defer d.targetMutex.Unlock()
+
+	if timeout == 0 {
+		timeout = 100
+	}
 
 	s, err := proc.ConvertEvalScope(d.target.Selected, goid, frame, deferredCall)
 	if err != nil {
 		return err
 	}
-	return s.SetVariable(symbol, value)
+	return s.SetVariable(symbol, value, timeout)
 }
 
 // Goroutines will return a list of goroutines in the target process.

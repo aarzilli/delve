@@ -2140,7 +2140,7 @@ func examineMemoryCmd(t *Term, ctx callContext, argstr string) error {
 	var address uint64
 
 	if args.IsExpr {
-		val, err := t.client.EvalVariable(ctx.Scope, args.Operand, t.loadConfig())
+		val, err := t.client.EvalVariable(ctx.Scope, args.Operand, t.evalTimeout(), t.loadConfig())
 		if err != nil {
 			return err
 		}
@@ -2210,7 +2210,7 @@ func (c *Commands) printVar(t *Term, ctx callContext, args string) error {
 		return nil
 	}
 	fmtstr, args := parseFormatArg(args)
-	val, err := t.client.EvalVariable(ctx.Scope, args, t.loadConfig())
+	val, err := t.client.EvalVariable(ctx.Scope, args, t.evalTimeout(), t.loadConfig())
 	if err != nil {
 		return err
 	}
@@ -2241,7 +2241,7 @@ func whatisCommand(t *Term, ctx callContext, args string) error {
 	if len(args) == 0 {
 		return errors.New("not enough arguments")
 	}
-	val, err := t.client.EvalVariable(ctx.Scope, args, ShortLoadConfig)
+	val, err := t.client.EvalVariable(ctx.Scope, args, t.evalTimeout(), ShortLoadConfig)
 	if err != nil {
 		info, err2 := t.client.TypeInfo(args)
 		if err2 != nil {
@@ -2301,7 +2301,7 @@ func setVar(t *Term, ctx callContext, args string) error {
 
 	lexpr := args[:el[0].Pos.Offset]
 	rexpr := args[el[0].Pos.Offset+1:]
-	return t.client.SetVariable(ctx.Scope, lexpr, rexpr)
+	return t.client.SetVariable(ctx.Scope, lexpr, rexpr, t.evalTimeout())
 }
 
 func (t *Term) printFilteredVariables(varType string, vars []api.Variable, filter string, cfg api.LoadConfig) error {

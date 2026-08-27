@@ -103,12 +103,12 @@ type Client interface {
 	// ListPackageVariables lists all package variables in the context of the current thread.
 	ListPackageVariables(filter string, cfg api.LoadConfig) ([]api.Variable, error)
 	// EvalVariable returns a variable in the context of the current thread.
-	EvalVariable(scope api.EvalScope, symbol string, cfg api.LoadConfig) (*api.Variable, error)
+	EvalVariable(scope api.EvalScope, symbol string, timeout int64, cfg api.LoadConfig) (*api.Variable, error)
 	// TypeInfo returns informations about a type.
 	TypeInfo(name string) (*api.TypeInfo, error)
 
 	// SetVariable sets the value of a variable
-	SetVariable(scope api.EvalScope, symbol, value string) error
+	SetVariable(scope api.EvalScope, symbol, value string, timeout int64) error
 
 	// ListSources lists all source files in the process matching filter.
 	ListSources(filter string) ([]string, error)

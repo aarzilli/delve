@@ -10,7 +10,7 @@ import (
 )
 
 type mapIterator interface {
-	next() bool
+	next(timedOut func() bool) bool
 	key() *Variable
 	value() *Variable
 }
@@ -96,6 +96,8 @@ func (v *Variable) mapIterator(maxNumBuckets uint64) mapIterator {
 	return it
 }
 
+const checkTimedOutThreshold = 10000
+
 // Classic Maps ///////////////////////////////////////////////////////////////
 
 type mapIteratorClassic struct {
@@ -120,6 +122,8 @@ type mapIteratorClassic struct {
 
 	hashTophashEmptyOne uint64 // Go 1.12 and later has two sentinel tophash values for an empty cell, this is the second one (the first one hashTophashEmptyZero, the same as Go 1.11 and earlier)
 	hashMinTopHash      uint64 // minimum value of tophash for a cell that isn't either evacuated or empty
+
+	cnt int
 }
 
 var (
@@ -244,8 +248,12 @@ func (it *mapIteratorClassic) nextBucket() bool {
 	return true
 }
 
-func (it *mapIteratorClassic) next() bool {
+func (it *mapIteratorClassic) next(timedOut func() bool) bool {
 	for {
+		it.cnt++
+		if timedOut != nil && it.cnt%checkTimedOutThreshold == 0 && timedOut() {
+			return false
+		}
 		if it.b == nil || it.idx >= it.tophashes.Len {
 			r := it.nextBucket()
 			if !r {
@@ -360,6 +368,8 @@ type mapIteratorSwiss struct {
 	groupCount uint64 // Total count of visited groups except for current table
 
 	curKey, curValue *Variable
+
+	cnt int
 }
 
 type swissTable struct {
@@ -503,13 +513,17 @@ func (it *mapIteratorSwiss) loadTypes() {
 }
 
 // derived from $GOROOT/src/internal/runtime/maps/table.go and $GOROOT/src/runtime/runtime-gdb.py
-func (it *mapIteratorSwiss) next() bool {
+func (it *mapIteratorSwiss) next(timedOut func() bool) bool {
 	if it.v.Unreadable != nil {
 		return false
 	}
 	for it.dirIdx < it.dirLen {
 		if it.maxNumGroups > 0 && it.groupIdx+it.groupCount >= it.maxNumGroups {
 			it.v.Unreadable = fmt.Errorf("max number of groups exceeded: %d", it.groupCount)
+			return false
+		}
+		it.cnt++
+		if timedOut != nil && it.cnt%checkTimedOutThreshold == 0 && timedOut() {
 			return false
 		}
 		if it.tab == nil {
@@ -543,6 +557,10 @@ func (it *mapIteratorSwiss) next() bool {
 				slotsLen = uint32(it.group.slots.Len)
 			}
 			for ; it.slotIdx < slotsLen; it.slotIdx++ {
+				it.cnt++
+				if timedOut != nil && it.cnt%checkTimedOutThreshold == 0 && timedOut() {
+					return false
+				}
 				if it.slotIsEmptyOrDeleted(it.slotIdx) {
 					continue
 				}

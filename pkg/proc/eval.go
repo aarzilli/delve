@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-delve/delve/pkg/astutil"
 	"github.com/go-delve/delve/pkg/dwarf/godwarf"
@@ -197,13 +198,13 @@ func (scope *EvalScope) evalopFlags() evalop.Flags {
 }
 
 // EvalExpression returns the value of the given expression.
-func (scope *EvalScope) EvalExpression(expr string, cfg LoadConfig) (*Variable, error) {
+func (scope *EvalScope) EvalExpression(expr string, timeout time.Duration, cfg LoadConfig) (*Variable, error) {
 	ops, err := evalop.Compile(scopeToEvalLookup{scope}, expr, scope.evalopFlags())
 	if err != nil {
 		return nil, err
 	}
 
-	stack := &evalStack{}
+	stack := &evalStack{timeout: timeout}
 
 	scope.loadCfg = &cfg
 	stack.eval(scope, ops)
@@ -693,13 +694,13 @@ func (scope *EvalScope) setValue(dstv, srcv *Variable, srcExpr string) error {
 }
 
 // SetVariable sets the value of the named variable
-func (scope *EvalScope) SetVariable(name, value string) error {
+func (scope *EvalScope) SetVariable(name, value string, timeout time.Duration) error {
 	ops, err := evalop.CompileSet(scopeToEvalLookup{scope}, name, value, scope.evalopFlags())
 	if err != nil {
 		return err
 	}
 
-	stack := &evalStack{}
+	stack := &evalStack{timeout: timeout}
 	stack.eval(scope, ops)
 	_, err = stack.result(nil)
 	return err
@@ -874,6 +875,8 @@ type evalStack struct {
 	ops                   []evalop.Op          // program being executed
 	opidx                 int                  // program counter for the stack program
 	callInjectionContinue bool                 // when set program execution suspends and the call injection protocol is executed instead
+	timeout               time.Duration        // timeout in milliseconds, 0 means no timeout
+	tstart                time.Time
 	err                   error
 
 	spoff, bpoff, fboff int64
@@ -933,6 +936,12 @@ func (stack *evalStack) eval(scope *EvalScope, ops []evalop.Op) {
 
 	stack.ops = ops
 	stack.scope = scope
+	if scope.callCtx != nil {
+		panic("internal error: call injection and timeouts simultaneously enabled")
+	}
+	if stack.timeout > 0 {
+		stack.tstart = time.Now()
+	}
 
 	if scope.g != nil {
 		stack.spoff = int64(scope.Regs.Uint64Val(scope.Regs.SPRegNum)) - int64(scope.g.stack.hi)
@@ -2234,7 +2243,9 @@ func (scope *EvalScope) evalIndex(op *evalop.Index, stack *evalStack) {
 			stack.err = idxev.Unreadable
 			return
 		}
-		stack.pushErr(xev.mapAccess(idxev))
+		stack.pushErr(xev.mapAccess(idxev, func() bool {
+			return stack.timeout > 0 && time.Since(stack.tstart) > stack.timeout
+		}))
 		return
 	default:
 		stack.err = cantindex
@@ -2882,11 +2893,7 @@ func (v *Variable) sliceAccess(idx int) (*Variable, error) {
 	return v.newVariable("", v.Base+uint64(int64(idx)*v.stride), v.fieldType, mem), nil
 }
 
-func (v *Variable) mapAccess(idx *Variable) (*Variable, error) {
-	// TODO(aarzilli): here if the memory is corrupt we could end up looking at
-	// a lot of memory, and taking a long time. However there is also no
-	// obvious limit that we can impose.
-	// Maybe this isn't necessary, segfaults may stop us quickly enough.
+func (v *Variable) mapAccess(idx *Variable, timedOut func() bool) (*Variable, error) {
 	it := v.mapIterator(0)
 	if it == nil {
 		return nil, fmt.Errorf("can not access unreadable map: %v", v.Unreadable)
@@ -2901,7 +2908,7 @@ func (v *Variable) mapAccess(idx *Variable) (*Variable, error) {
 	}
 
 	first := true
-	for it.next() {
+	for it.next(timedOut) {
 		key := it.key()
 		key.loadValue(lcfg)
 		if key.Unreadable != nil {
@@ -2923,6 +2930,9 @@ func (v *Variable) mapAccess(idx *Variable) (*Variable, error) {
 	}
 	if v.Unreadable != nil {
 		return nil, v.Unreadable
+	}
+	if timedOut() {
+		return nil, errors.New("eval timed out")
 	}
 	// go would return zero for the map value type here, we do not have the ability to create zeroes
 	return nil, errors.New("key not found")
