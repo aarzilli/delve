@@ -795,6 +795,7 @@ type EvalStarlarkFlags int
 const (
 	EvalStarlarkReset EvalStarlarkFlags = 1 << iota
 	EvalStarlarkCallCommand
+	EvalStarlarkNoninteractive
 )
 
 type StarlarkOutKind int

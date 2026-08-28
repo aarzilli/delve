@@ -258,7 +258,7 @@ func New(config *Config, processArgs []string) (*Debugger, error) {
 		} else {
 			to, cancel := context.WithTimeout(context.Background(), maximumStarlarkInitDuration)
 			defer cancel()
-			sthread := d.StarlarkEnv.newThread(to, nil)
+			sthread := d.StarlarkEnv.newThread(to, false, nil)
 			go d.StarlarkEnv.execute(sthread, config.StarlarkInitFile, string(buf), false)
 			out := <-sthread.resp
 			if out.err != nil {
@@ -2723,7 +2723,7 @@ func (d *Debugger) customPrettyPrintInternal(doLock bool) api.CustomPrettyPrintF
 		}
 		if thread == nil {
 			to, _ := context.WithTimeout(context.Background(), maximumPrettyPrintDuration)
-			thread = d.StarlarkEnv.newThread(to, nil)
+			thread = d.StarlarkEnv.newThread(to, false, nil)
 		}
 		select {
 		case <-thread.ctx.Done():
