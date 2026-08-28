@@ -599,7 +599,7 @@ const (
 	// It is chosen to never resolve to a real process address.
 	// The ebpf subpackage has its own copy (fakeAddressUnresolv in helpers.go);
 	// both must stay in sync.
-	fakeAddressUnresolv = 0xbeed000000000000
+	FakeAddressUnresolv = 0xbeed000000000000
 )
 
 // newCompositeMemory creates a new compositeMemory object and registers it.

@@ -67,6 +67,25 @@ func (d *Debugger) EvalStarlark(threadID uint64, s any, scope api.EvalScope, loa
 	return processStarlarkResp(thread)
 }
 
+func (d *Debugger) EvalStarlarkExpr(s any, scope api.EvalScope, loadConfig api.LoadConfig, script string, timeout time.Duration) (*api.Variable, error) {
+	d.targetMutex.Lock()
+	defer d.targetMutex.Unlock()
+	to, _ := context.WithTimeout(context.Background(), timeout)
+	thread := d.StarlarkEnv.newThread(to, false, nil)
+	d.StarlarkEnv.scope = scope
+	d.StarlarkEnv.loadConfig = loadConfig
+	d.StarlarkEnv.isLocked = true
+	defer func() {
+		d.StarlarkEnv.isLocked = false
+	}()
+	out, err := d.StarlarkEnv.execStmt(thread, script)
+	if err != nil {
+		return nil, err
+	}
+	return starlarkValueToVariable(out), nil
+
+}
+
 func (d *Debugger) EvalStarlarkContinue(threadID uint64, value string, scope api.EvalScope, loadConfig api.LoadConfig, errIn string) (api.EvalStarlarkOut, error) {
 	d.targetMutex.Lock()
 	thread := d.StarlarkEnv.threads[threadID]
@@ -325,7 +344,15 @@ func (env *StarlarkEnv) reset() {
 func (env *StarlarkEnv) newThread(ctx context.Context, withCont bool, s any) *starlarkThread {
 	thread := &starlark.Thread{
 		Print: func(thread *starlark.Thread, msg string) {
-			clientRoundTrip(thread, "print", api.StarlarkPrint, msg, nil)
+			sthread := asStarlarkThread(thread)
+			if sthread.cont == nil {
+				logflags.DebuggerLogger().Error(msg)
+			} else {
+				c := clientRoundTrip(thread, "print", api.StarlarkPrint, msg, nil)
+				if c.errstr != "" {
+					logflags.DebuggerLogger().Errorf("starlark print error: %s", c.errstr)
+				}
+			}
 		},
 	}
 	sthread := &starlarkThread{

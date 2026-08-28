@@ -75,7 +75,7 @@ func (m *memCache) WriteMemory(addr uint64, data []byte) (written int, err error
 }
 
 func CreateLoadedCachedMemory(data []byte) MemoryReadWriter {
-	return &memCache{loaded: true, cacheAddr: fakeAddressUnresolv, cache: data, mem: nil}
+	return &memCache{loaded: true, cacheAddr: FakeAddressUnresolv, cache: data, mem: nil}
 }
 
 func cacheMemory(mem MemoryReadWriter, addr uint64, size int) MemoryReadWriter {
@@ -124,7 +124,7 @@ func CreateCompositeMemory(mem MemoryReadWriter, arch *Arch, regs op.DwarfRegist
 	// of newCompositeMemory since it existed first.
 	cm, err := newCompositeMemory(mem, arch, regs, pieces, size)
 	if cm != nil {
-		cm.base = fakeAddressUnresolv
+		cm.base = FakeAddressUnresolv
 	}
 	return cm, err
 }
