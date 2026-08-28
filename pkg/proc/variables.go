@@ -1252,7 +1252,7 @@ func extractVarInfoFromEntry(tgt *Target, bi *BinaryInfo, image *Image, regs op.
 		} else {
 			cmem, err = newCompositeMemory(mem, bi.Arch, regs, pieces, t.Common().ByteSize)
 			if cmem != nil {
-				cmem.base = fakeAddressUnresolv
+				cmem.base = FakeAddressUnresolv
 				addr = int64(cmem.base)
 			}
 		}
@@ -1406,7 +1406,7 @@ func (v *Variable) loadValueInternal(recurseLevel int, cfg LoadConfig) {
 
 		case v.Flags&VariableCPURegister != 0:
 			val = fmt.Sprintf("%x", v.reg.Bytes)
-			s := v.Base - fakeAddressUnresolv
+			s := v.Base - FakeAddressUnresolv
 			if s < uint64(len(val)) {
 				val = val[s:]
 				if v.Len >= 0 && v.Len < int64(len(val)) {
@@ -1660,7 +1660,7 @@ func (v *Variable) loadSliceInfo(t *godwarf.SliceType) {
 		}
 	}
 
-	if v.Addr == fakeAddressUnresolv && v.fieldType == nil {
+	if v.Addr == FakeAddressUnresolv && v.fieldType == nil {
 		return
 	}
 
@@ -2255,7 +2255,7 @@ func (v *Variable) registerVariableTypeConv(newtyp string) (*Variable, error) {
 	v.loaded = true
 	v.Kind = reflect.Array
 	v.Len = int64(len(v.Children))
-	v.Base = fakeAddressUnresolv
+	v.Base = FakeAddressUnresolv
 	v.DwarfType = fakeArrayType(uint64(len(v.Children)), &godwarf.VoidType{CommonType: godwarf.CommonType{ByteSize: int64(n)}})
 	v.RealType = v.DwarfType
 	return v, nil

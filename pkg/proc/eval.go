@@ -1123,7 +1123,7 @@ func (stack *evalStack) executeOp() {
 				stack.err = fmt.Errorf("could not find runtime.g: %v", err)
 				return
 			}
-			gvar := newVariable("curg", fakeAddressUnresolv, typ, scope.BinInfo, scope.Mem)
+			gvar := newVariable("curg", FakeAddressUnresolv, typ, scope.BinInfo, scope.Mem)
 			gvar.loaded = true
 			gvar.Flags = VariableFakeAddress
 			gvar.Children = append(gvar.Children, *newConstant(constant.MakeInt64(0), scope.BinInfo, scope.Mem))
@@ -1324,7 +1324,7 @@ func (stack *evalStack) executeOp() {
 		stack.push(stack.debugPinner)
 
 	case *evalop.PushBreakpointHitCount:
-		stack.push(newVariable(evalop.BreakpointHitCountVarNameQualified, fakeAddressUnresolv, godwarf.FakeSliceType(godwarf.FakeBasicType("uint", 64)), scope.BinInfo, scope.Mem))
+		stack.push(newVariable(evalop.BreakpointHitCountVarNameQualified, FakeAddressUnresolv, godwarf.FakeSliceType(godwarf.FakeBasicType("uint", 64)), scope.BinInfo, scope.Mem))
 
 	case *evalop.PushRuntimeType:
 		typeAddr, _, _, err := dwarfToRuntimeType(scope.BinInfo, scope.Mem, op.Type)
@@ -1436,9 +1436,9 @@ func (stack *evalStack) pushIdent(scope *EvalScope, name string) (found bool) {
 	v = newVariable(regname, 0, typ, scope.BinInfo, scope.Mem)
 	if v.Kind == reflect.String {
 		v.Len = int64(len(reg.Bytes) * 2)
-		v.Base = fakeAddressUnresolv
+		v.Base = FakeAddressUnresolv
 	}
-	v.Addr = fakeAddressUnresolv
+	v.Addr = FakeAddressUnresolv
 	v.Flags = VariableCPURegister
 	v.reg = reg
 	stack.push(v)

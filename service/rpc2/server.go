@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/go-delve/delve/pkg/dwarf/op"
@@ -597,11 +598,22 @@ func (s *RPCServer) Eval(arg EvalIn, out *EvalOut) error {
 	if arg.Timeout == 0 {
 		arg.Timeout = 100
 	}
-	v, err := s.debugger.EvalVariableInScope(arg.Scope.GoroutineID, arg.Scope.Frame, arg.Scope.DeferredCall, arg.Expr, time.Duration(arg.Timeout)*time.Millisecond, pcfg)
-	if err != nil {
-		return err
+	to := time.Duration(arg.Timeout) * time.Millisecond
+	if len(arg.Expr) > 0 && arg.Expr[0] == '$' {
+		expr := arg.Expr[1:]
+		expr = strings.TrimLeft(expr, " \t\n")
+		var err error
+		out.Variable, err = s.debugger.EvalStarlarkExpr(s, arg.Scope, *arg.Cfg, expr, to)
+		if err != nil {
+			return err
+		}
+	} else {
+		v, err := s.debugger.EvalVariableInScope(arg.Scope.GoroutineID, arg.Scope.Frame, arg.Scope.DeferredCall, arg.Expr, to, pcfg)
+		if err != nil {
+			return err
+		}
+		out.Variable = api.ConvertVar(v, s.debugger.CustomPrettyPrint())
 	}
-	out.Variable = api.ConvertVar(v, s.debugger.CustomPrettyPrint())
 	return nil
 }
 

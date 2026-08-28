@@ -722,7 +722,6 @@ func unmarshalStarlarkValueIntl(val starlark.Value, dst reflect.Value, path stri
 	return nil
 }
 
-
 type starlarkUnhashable struct {
 }
 
@@ -731,4 +730,81 @@ func (starlarkUnhashable) Freeze() {
 
 func (starlarkUnhashable) Hash() (uint32, error) {
 	return 0, errors.New("not hashable")
+}
+
+const (
+	fakeStarlarkDwarfTypeList = "starlark:list"
+	fakeStarlarkDwarfTypeDict = "starlark:dict"
+	fakeStarlarkDwarfTypeSet  = "starlark:set"
+)
+
+func starlarkValueToVariable(v starlark.Value) *api.Variable {
+	base := func(kind reflect.Kind) *api.Variable {
+		return &api.Variable{
+			Addr:     proc.FakeAddressUnresolv,
+			Type:     "starlark:" + v.Type(),
+			RealType: "starlark:" + v.Type(),
+			Kind:     kind,
+		}
+	}
+	simple := func(kind reflect.Kind) *api.Variable {
+		r := base(kind)
+		r.Value = v.String()
+		return r
+	}
+	switch v := v.(type) {
+	case nil:
+		return &api.Variable{Name: "nil", Kind: reflect.Ptr}
+	case starlark.String: // must go before Indexable, reflect.String is indexable but we don't want to convert it like that
+		r := base(reflect.String)
+		r.Len = int64(len(string(v)))
+		r.Value = string(v)
+		return r
+	case starlark.Float:
+		return simple(reflect.Float64)
+	case starlark.Bytes: // must go before Indexable, otherwise it will recurse infinitely
+		return simple(reflect.Func)
+	case starlark.Int:
+		return simple(reflect.Int)
+	case starlark.Bool:
+		return simple(reflect.Bool)
+	case starlark.Indexable:
+		r := base(reflect.Array)
+		r.Len = int64(v.Len())
+		for i := range v.Len() {
+			child := v.Index(i)
+			r.Children = append(r.Children, *starlarkValueToVariable(child))
+		}
+		return r
+	case *starlark.Dict:
+		r := base(reflect.Map)
+		r.Len = int64(v.Len())
+		for _, key := range v.Keys() {
+			r.Children = append(r.Children, *starlarkValueToVariable(key))
+			val, _, _ := v.Get(key)
+			r.Children = append(r.Children, *starlarkValueToVariable(val))
+		}
+		return r
+	case *starlark.Set:
+		r := base(reflect.Array)
+		r.Len = int64(v.Len())
+		it := v.Iterate()
+		var el starlark.Value
+		for it.Next(&el) {
+			r.Children = append(r.Children, *starlarkValueToVariable(el))
+		}
+		return r
+	case structVariableAsStarlarkValue:
+		return v.v
+	case ptrVariableAsStarlarkValue:
+		return v.v
+	case mapVariableAsStarlarkValue:
+		return v.v
+	case structAsStarlarkValue:
+		if v, ok := v.v.Interface().(api.Variable); ok {
+			return &v
+		}
+	}
+	r := simple(reflect.Func)
+	return r
 }

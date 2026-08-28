@@ -3550,3 +3550,76 @@ func TestTypeInfo(t *testing.T) {
 		}
 	})
 }
+
+func TestStarlarkThroughEval(t *testing.T) {
+	withTestClient2("testvariables2", t, func(c service.Client) {
+		state := <-c.Continue()
+		assertNoError(state.Err, t, "Continue")
+
+		for _, tc := range []struct{ expr, tgtType, tgtVal string }{
+			// Basic Starlark types
+			{"$ 2", "starlark:int", "2"},
+			{"$ 2.3", "starlark:float", "2.3"},
+			{`$ "blah"`, "starlark:string", `"blah"`},
+			{"$ False", "starlark:bool", "False"},
+			{"$ None", "", "nil"},
+			{"$ len", "starlark:builtin_function_or_method", `<built-in function len>`},
+
+			// Compound Starlark types
+			{`$ { "key1": 2.3, "key2": True }`, "starlark:dict", `starlark:dict ["key1": 2.3, "key2": True, ]`},
+			{`$ ( "element1", -1 )`, "starlark:tuple", `starlark:tuple ["element1",-1]`},
+			{`$ [ "element1", -1 ]`, "starlark:list", `starlark:list ["element1",-1]`},
+
+			// Special objects
+			{`$ tgt`, "starlark:<target variables>", `<target variables>`},
+			{`$ gs`, "starlark:<target goroutines>", `<target goroutines>`},
+			{`$ gs[-1]`, "starlark:<goroutine>", `api.Goroutine{ID:1, …`},
+			{`$ gs[-1].stack`, "starlark:<target stack>", "<target stack>"},
+			{`$ gs[-1].stack[0]`, "starlark:<target stack frame>", "api.Stackframe{Location:…"},
+			{`$ [ frame.Function.Name_ for frame in gs[-1].stack ]`, "starlark:list", `starlark:list ["main.main","runtime.main",…`},
+
+			// Variables
+			{`$ tgt.c1`, "main.cstruct", "main.cstruct {pb: *main.bstruct …"},
+			{`$ [ x for x in tgt.s2 if x.A + x.B < 10]`, "starlark:list", "starlark:list [{A: 1, B: 2},{A: 3, B: 4}]"},
+		} {
+			t.Run(tc.expr, func(t *testing.T) {
+				v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, tc.expr, 0, normalLoadConfig)
+				if err != nil {
+					t.Fatalf("got error: %v", err)
+				}
+				out := v.SinglelineString()
+				t.Logf("%q -> %q", tc.expr, out)
+				if v.Type != tc.tgtType {
+					t.Errorf("wrong type, got: %q expected: %q", v.Type, tc.tgtType)
+				}
+				if strings.HasSuffix(tc.tgtVal, "…") {
+					pfx := tc.tgtVal[:len(tc.tgtVal)-len("…")]
+					if !strings.HasPrefix(out, pfx) {
+						t.Errorf("wrong value, got: %q expected %q", out, tc.tgtVal)
+					}
+				} else {
+					if out != tc.tgtVal {
+						t.Errorf("wrong value, got: %q expected: %q", out, tc.tgtVal)
+					}
+				}
+			})
+		}
+
+		for _, tc := range []struct{ expr, tgterr string }{
+			{`$ write_file("afile.txt", "contents")`, "write_file not allowed in this environment"},
+			{`$ eval(None, "i1")`, "no server"},
+			//TODO: coverage check
+		} {
+			t.Run(tc.expr, func(t *testing.T) {
+				_, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, tc.expr, 0, normalLoadConfig)
+				if err == nil {
+					t.Fatalf("expected error for %q", tc.expr)
+				}
+				t.Logf("%q -> errror %q", tc.expr, err)
+				if !strings.Contains(err.Error(), tc.tgterr) {
+					t.Fatalf("error %q does not contain %q", err.Error(), tc.tgterr)
+				}
+			})
+		}
+	})
+}
