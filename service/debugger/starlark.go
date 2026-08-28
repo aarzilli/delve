@@ -56,7 +56,7 @@ func (d *Debugger) EvalStarlark(threadID uint64, s any, scope api.EvalScope, loa
 
 	thread := d.StarlarkEnv.threads[threadID]
 	if thread == nil {
-		thread = d.StarlarkEnv.newThread(context.Background(), s)
+		thread = d.StarlarkEnv.newThread(context.Background(), flags&api.EvalStarlarkNoninteractive == 0, s)
 	}
 	d.StarlarkEnv.scope = scope
 	d.StarlarkEnv.loadConfig = loadConfig
@@ -322,7 +322,7 @@ func (env *StarlarkEnv) reset() {
 	maps.Copy(env.env, env.defaultEnv)
 }
 
-func (env *StarlarkEnv) newThread(ctx context.Context, s any) *starlarkThread {
+func (env *StarlarkEnv) newThread(ctx context.Context, withCont bool, s any) *starlarkThread {
 	thread := &starlark.Thread{
 		Print: func(thread *starlark.Thread, msg string) {
 			clientRoundTrip(thread, "print", api.StarlarkPrint, msg, nil)
@@ -331,7 +331,9 @@ func (env *StarlarkEnv) newThread(ctx context.Context, s any) *starlarkThread {
 	sthread := &starlarkThread{
 		thread: thread,
 		resp:   make(chan *evalStarlarkOut),
-		cont:   make(chan *starlarkCont),
+	}
+	if withCont {
+		sthread.cont = make(chan *starlarkCont)
 	}
 	sthread.ctx, sthread.cancelfn = context.WithCancel(ctx)
 	thread.SetLocal(dlvThreadLocalThreadName, sthread)
