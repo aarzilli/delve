@@ -46,7 +46,7 @@ type slogLogger struct {
 
 func sloglog(logger *slog.Logger, level slog.Level, thunk func() string) {
 	// see the "Wrapping" example in the documentation of log/slog
-	if !logger.Enabled(context.Background(), slog.LevelDebug) {
+	if !logger.Enabled(context.Background(), level) {
 		return
 	}
 	var pcs [1]uintptr
