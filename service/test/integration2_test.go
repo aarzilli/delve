@@ -235,7 +235,7 @@ func TestRestart_rebuild(t *testing.T) {
 	withTestClient2Extended("testenv2", t, 0, [3]string{}, nil, func(c service.Client, f protest.Fixture) {
 		<-c.Continue()
 
-		var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "x", normalLoadConfig)
+		var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "x", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable")
 
 		if var1.Value != "bah" {
@@ -265,7 +265,7 @@ func TestRestart_rebuild(t *testing.T) {
 
 		<-c.Continue()
 
-		var1, err = c.EvalVariable(api.EvalScope{GoroutineID: -1}, "x", normalLoadConfig)
+		var1, err = c.EvalVariable(api.EvalScope{GoroutineID: -1}, "x", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable")
 
 		if var1.Value != "foobar" {
@@ -701,7 +701,7 @@ func TestClientServer_disableHitCondLSSBreakpoint(t *testing.T) {
 				return
 			}
 
-			ivar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "i", normalLoadConfig)
+			ivar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "i", 0, normalLoadConfig)
 			assertNoError(err, t, "EvalVariable")
 
 			t.Logf("ivar: %s", ivar.SinglelineString())
@@ -748,7 +748,7 @@ func TestClientServer_disableHitEQLCondBreakpoint(t *testing.T) {
 			t.Fatal("Program did not hit breakpoint")
 		}
 
-		ivar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "i", normalLoadConfig)
+		ivar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "i", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable")
 
 		t.Logf("ivar: %s", ivar.SinglelineString())
@@ -1282,7 +1282,7 @@ func TestClientServer_EvalVariable(t *testing.T) {
 			t.Fatalf("Continue(): %v\n", state.Err)
 		}
 
-		var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "a1", normalLoadConfig)
+		var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "a1", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable")
 
 		t.Logf("var1: %s", var1.SinglelineString())
@@ -1301,9 +1301,9 @@ func TestClientServer_SetVariable(t *testing.T) {
 			t.Fatalf("Continue(): %v\n", state.Err)
 		}
 
-		assertNoError(c.SetVariable(api.EvalScope{GoroutineID: -1}, "a2", "8"), t, "SetVariable()")
+		assertNoError(c.SetVariable(api.EvalScope{GoroutineID: -1}, "a2", "8", 0), t, "SetVariable()")
 
-		a2, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "a2", normalLoadConfig)
+		a2, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "a2", 0, normalLoadConfig)
 		if err != nil {
 			t.Fatalf("Could not evaluate variable: %v", err)
 		}
@@ -1463,7 +1463,7 @@ func TestIssue355(t *testing.T) {
 		assertError(err, t, "ListThreads()")
 		_, err = c.GetThread(tid)
 		assertError(err, t, "GetThread()")
-		assertError(c.SetVariable(api.EvalScope{GoroutineID: gid}, "a", "10"), t, "SetVariable()")
+		assertError(c.SetVariable(api.EvalScope{GoroutineID: gid}, "a", "10", 0), t, "SetVariable()")
 		_, err = c.ListLocalVariables(api.EvalScope{GoroutineID: gid}, normalLoadConfig)
 		assertError(err, t, "ListLocalVariables()")
 		_, err = c.ListFunctionArgs(api.EvalScope{GoroutineID: gid}, normalLoadConfig)
@@ -1637,7 +1637,7 @@ func TestClientServer_CondBreakpoint(t *testing.T) {
 		state := <-c.Continue()
 		assertNoError(state.Err, t, "Continue()")
 
-		nvar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "n", normalLoadConfig)
+		nvar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "n", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable()")
 
 		if nvar.SinglelineString() != "7" {
@@ -1647,7 +1647,7 @@ func TestClientServer_CondBreakpoint(t *testing.T) {
 }
 
 func clientEvalVariable(t *testing.T, c service.Client, expr string) *api.Variable {
-	v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, expr, normalLoadConfig)
+	v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, expr, 0, normalLoadConfig)
 	assertNoError(err, t, fmt.Sprintf("EvalVariable(%s)", expr))
 	return v
 }
@@ -1755,7 +1755,7 @@ func TestIssue406(t *testing.T) {
 		ch := c.Continue()
 		state := <-ch
 		assertNoError(state.Err, t, "Continue()")
-		v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "cfgtree", normalLoadConfig)
+		v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "cfgtree", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable()")
 		vs := v.StringWithOptions("", "", api.PrettyNewlines)
 		t.Logf("cfgtree formats to: %s\n", vs)
@@ -1767,7 +1767,7 @@ func TestEvalExprName(t *testing.T) {
 		state := <-c.Continue()
 		assertNoError(state.Err, t, "Continue()")
 
-		var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "i1+1", normalLoadConfig)
+		var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "i1+1", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable")
 
 		const name = "i1+1"
@@ -1844,7 +1844,7 @@ func TestClientServer_FpRegisters(t *testing.T) {
 		scope := api.EvalScope{GoroutineID: -1}
 
 		boolvar := func(name string) bool {
-			v, err := c.EvalVariable(scope, name, normalLoadConfig)
+			v, err := c.EvalVariable(scope, name, 0, normalLoadConfig)
 			if err != nil {
 				t.Fatalf("could not read %s variable", name)
 			}
@@ -1906,7 +1906,7 @@ func TestClientServer_FpRegisters(t *testing.T) {
 			{"XMM1.float64[0]", `1.3`},
 			{"RAX.uint8[0]", "42"},
 		} {
-			v, err := c.EvalVariable(scope, tc.expr, normalLoadConfig)
+			v, err := c.EvalVariable(scope, tc.expr, 0, normalLoadConfig)
 			if err != nil {
 				t.Fatalf("could not evalue expression %s: %v", tc.expr, err)
 			}
@@ -2392,7 +2392,7 @@ func TestRerecord(t *testing.T) {
 				t.Fatalf("Unexpected error: %v, state: %#v", state.Err, state)
 			}
 
-			vart, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "t", normalLoadConfig)
+			vart, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "t", 0, normalLoadConfig)
 			assertNoError(err, t, "EvalVariable")
 			if vart.Unreadable != "" {
 				t.Fatalf("Could not read variable 't': %s\n", vart.Unreadable)
@@ -2751,13 +2751,13 @@ func TestLongStringArg(t *testing.T) {
 		assertNoError(state.Err, t, "Continue")
 
 		test := func(name, val1, val2 string) uint64 {
-			var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, name, normalLoadConfig)
+			var1, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, name, 0, normalLoadConfig)
 			assertNoError(err, t, "EvalVariable")
 			t.Logf("%#v\n", var1)
 			if var1.Value != val1 {
 				t.Fatalf("wrong value for variable: %q", var1.Value)
 			}
-			var2, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, fmt.Sprintf("(*(*%q)(%#x))[64:]", var1.Type, var1.Addr), normalLoadConfig)
+			var2, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, fmt.Sprintf("(*(*%q)(%#x))[64:]", var1.Type, var1.Addr), 0, normalLoadConfig)
 			assertNoError(err, t, "EvalVariable")
 			t.Logf("%#v\n", var2)
 			if var2.Value != val2 {
@@ -2886,7 +2886,7 @@ func TestClientServer_SinglelineStringFormattedWithBigInts(t *testing.T) {
 			t.Fatalf("wrong location after continue %s:%d", state.CurrentThread.File, state.CurrentThread.Line)
 		}
 
-		constvar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "9331634762088972288", normalLoadConfig)
+		constvar, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "9331634762088972288", 0, normalLoadConfig)
 		assertNoError(err, t, "ErrVariable(9331634762088972288)")
 		out := constvar.StringWithOptions("", "%X", 0)
 		t.Logf("constant: %q\n", out)
@@ -2894,7 +2894,7 @@ func TestClientServer_SinglelineStringFormattedWithBigInts(t *testing.T) {
 			t.Errorf("expected \"8180A06000000000\" got %q when printing constant", out)
 		}
 
-		xmm0var, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "XMM0.uint64", normalLoadConfig)
+		xmm0var, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "XMM0.uint64", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable(XMM0.uint64)")
 
 		expected := []string{
@@ -3506,7 +3506,7 @@ func TestEvalNonunicodeString(t *testing.T) {
 	withTestClient2("testvariables2", t, func(c service.Client) {
 		state := <-c.Continue()
 		assertNoError(state.Err, t, "Continue")
-		v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "string(issue4072)", normalLoadConfig)
+		v, err := c.EvalVariable(api.EvalScope{GoroutineID: -1}, "string(issue4072)", 0, normalLoadConfig)
 		assertNoError(err, t, "EvalVariable")
 		t.Logf("%s", v.StringWithOptions("", "", api.PrettyNewlines))
 		tgt := string([]byte{116, 121, 112, 101, 32, 84, 32, 115, 116, 114, 117, 99, 116, 32, 123, 12, 12, 9, 255, 102, 108, 100, 99, 111, 109, 255})
