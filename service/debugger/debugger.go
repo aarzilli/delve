@@ -2676,17 +2676,18 @@ func (d *Debugger) DownloadLibraryDebugInfo(n int, eventsFn func(*proc.Event)) e
 	if n > 0 {
 		return bi.LoadImageBinaryInfoAgain(n)
 	}
-	hadErrors := false
+	tried, succeeded := 0, 0
 	for i := range bi.Images {
 		if bi.Images[i].LoadError() != nil {
+			tried++
 			err := bi.LoadImageBinaryInfoAgain(i)
-			if err != nil {
-				hadErrors = true
+			if err == nil {
+				succeeded++
 			}
 		}
 	}
-	if hadErrors {
-		return errors.New("errors downloading debuginfo")
+	if tried != succeeded {
+		return fmt.Errorf("downloaded %d/%d libraries", succeeded, tried)
 	}
 	return nil
 }

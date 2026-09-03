@@ -3501,7 +3501,7 @@ func TestCancelDownload(t *testing.T) {
 
 func TestCancelDownloadAfterAttach(t *testing.T) {
 	if testBackend == "rr" {
-		return
+		t.Skip("N/A")
 	}
 	if runtime.GOOS != "linux" {
 		t.Skip("linux only")

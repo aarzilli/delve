@@ -458,6 +458,8 @@ type DebuggerCommand struct {
 
 	// If WithEvents is set events are generated that should be read by calling
 	// GetEvents.
+	// A client specifying this is responsible for calling GetEvents repeatedly
+	// until an EventStopped is seen.
 	WithEvents bool
 
 	// UnsafeCall disables parameter escape checking for function calls.
@@ -746,12 +748,12 @@ type Event struct {
 type EventKind uint8
 
 const (
-	EventResumed EventKind = iota
-	EventStopped
-	EventBinaryInfoDownload
-	EventBreakpointMaterialized
-	EventProcessSpawned
-	EventDownloadLibraryInfoDone
+	EventResumed                 EventKind = iota // The target process has resumed
+	EventStopped                                  // The target process stopped, there will be no more events until Command is called again
+	EventBinaryInfoDownload                       // Delve is downloading the debug symbols for a library, using debuginfod
+	EventBreakpointMaterialized                   // A previously suspended breakpoint has been materialized
+	EventProcessSpawned                           // A new child process has been spawned
+	EventDownloadLibraryInfoDone                  // The DownloadLibraryDebugInfo call has finished its work
 )
 
 // BinaryInfoDownloadEventDetails describes the details of a BinaryInfoDownloadEvent

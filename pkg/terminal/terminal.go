@@ -166,6 +166,7 @@ func New(client service.Client, conf *config.Config, isAttachCmd bool) *Term {
 				if !firstEventBinaryInfoDownload {
 					fmt.Fprintf(t.stdout, "\n")
 				}
+				firstEventBinaryInfoDownload = true
 			case api.EventBreakpointMaterialized:
 				bp := event.BreakpointMaterializedEventDetails.Breakpoint
 				file := t.formatPath(bp.File)

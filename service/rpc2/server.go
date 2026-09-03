@@ -1252,7 +1252,11 @@ func (s *RPCServer) CancelDownloads(arg CancelDownloadsIn, cb service.RPCCallbac
 }
 
 type DownloadLibraryDebugInfoIn struct {
-	N          int
+	N int
+	// WithEvents specifies that download events, similar to the ones produced
+	// by Command are emitted.
+	// A client specifying WithEvents is responsible for repeatedly calling
+	// GetEvents until a EventDownloadLibraryInfoDone is seen.
 	WithEvents bool
 }
 
